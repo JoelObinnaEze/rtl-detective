@@ -61,9 +61,10 @@ class SimulationOutcome:
 def render_testbench(transactions: list[Transaction], parameters: SimulationParameters) -> str:
     drives = []
     for cycle, item in enumerate(transactions):
+        masked_din = item.din & ((1 << parameters.data_width) - 1)
         drives.append(
             f"""    @(negedge clk);
-    rst = {int(item.rst)}; wr_en = {int(item.wr_en)}; rd_en = {int(item.rd_en)}; din = {parameters.data_width}'h{item.din:X};
+    rst = {int(item.rst)}; wr_en = {int(item.wr_en)}; rd_en = {int(item.rd_en)}; din = {parameters.data_width}'h{masked_din:X};
     @(posedge clk); #1;
     $display(\"RTLDET|%0d|%0d|%0d|%0d|%0d\", {cycle}, dout, full, empty, count);"""
         )
@@ -305,9 +306,11 @@ def container_security_args(workspace: Path, name: str) -> list[str]:
         "--pids-limit",
         "128",
         "--ulimit",
-        "fsize=65536:65536",
+        "fsize=67108864:67108864",
         "--tmpfs",
         "/tmp:rw,noexec,nosuid,size=67108864",
+        "--env",
+        "CCACHE_DISABLE=1",
         "--user",
         user,
         "--mount",

@@ -85,3 +85,17 @@ def test_cancel_and_artifact_download(tmp_path: Path) -> None:
     assert client.get("/api/runs/run-1/artifacts").json()[0]["name"] == "report.json"
     assert client.get("/api/runs/run-1/artifacts/report.json").text == '{"status":"completed"}'
 
+
+def test_terminal_run_events_are_streamed_as_sse(tmp_path: Path) -> None:
+    artifact = tmp_path / "report.json"
+    artifact.write_text("{}", encoding="utf-8")
+    client = TestClient(create_app(StubManager(artifact)))
+
+    response = client.get("/api/runs/run-1/events")
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/event-stream")
+    assert "event: run_event" in response.text
+    assert 'data: {"sequence": 1, "state": "completed", "message": "Done"}' in response.text
+    assert "event: done" in response.text
+

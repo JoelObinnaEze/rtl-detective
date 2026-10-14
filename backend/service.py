@@ -19,6 +19,7 @@ from backend.verification.runner import (
     run_local_simulation,
 )
 from backend.verification.security import validate_source
+from backend.verification.trace import extract_signal_changes
 
 
 class _UnavailableProvider:
@@ -143,6 +144,12 @@ class RunManager:
         (run_root / "report.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
         if report.final_candidate:
             shutil.copyfile(report.final_candidate, run_root / "candidate.sv")
+        if report.baseline.trace_path and report.baseline.trace_path.exists():
+            trace = run_root / "trace.vcd"
+            shutil.copyfile(report.baseline.trace_path, trace)
+            (run_root / "trace-changes.json").write_text(
+                json.dumps(extract_signal_changes(trace), indent=2), encoding="utf-8"
+            )
 
         bundle = run_root / "artifact-bundle.zip"
         with zipfile.ZipFile(bundle, "w", compression=zipfile.ZIP_DEFLATED) as archive:

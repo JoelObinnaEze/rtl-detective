@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="Evidence-first verification and bounded repair for small SystemVerilog FIFOs.">
+    <title>RTL Detective</title>
+    <link rel="stylesheet" href="/styles.css">
+    <script src="/app.js" defer></script>
+  </head>
+  <body>
+    <header class="topbar">
+      <a class="brand" href="/" aria-label="RTL Detective home">
+        <span class="brand-mark" aria-hidden="true">RD</span>
+        <span>RTL Detective</span>
+      </a>
+      <div class="mode"><span class="pulse" aria-hidden="true"></span> LIVE WORKFLOW · NEBIUS FOR REPAIRS</div>
+    </header>
+
+    <main class="shell">
+      <aside class="setup" aria-labelledby="setup-title">
+        <div>
+          <p class="eyebrow">Verification setup</p>
+          <h1 id="setup-title">Find the failing cycle.</h1>
+          <p class="lede">Test one canonical synchronous FIFO, inspect the evidence, and evaluate a bounded repair.</p>
+        </div>
+
+        <form id="run-form">
+          <fieldset>
+            <legend>RTL source</legend>
+            <label for="example">Bundled case</label>
+            <select id="example" name="exampleId" required>
+              <option value="">Loading examples…</option>
+            </select>
+            <label class="source-toggle">
+              <input id="use-source" type="checkbox">
+              Use pasted RTL instead
+            </label>
+            <div id="source-field" hidden>
+              <label for="source">SystemVerilog source</label>
+              <textarea id="source" rows="10" spellcheck="false" placeholder="module fifo #(…"></textarea>
+              <p class="hint">Uploads run only when the isolated Docker worker is available.</p>
+            </div>
+          </fieldset>
+
+          <fieldset>
+            <legend>Parameters</legend>
+            <div class="parameter-grid">
+              <label for="data-width">Data width
+                <input id="data-width" type="number" min="1" max="64" value="8" required>
+              </label>
+              <label for="depth">Depth
+                <input id="depth" type="number" min="1" max="1024" value="3" required>
+              </label>
+            </div>
+          </fieldset>
+
+          <details class="contract">
+            <summary>Selected FIFO contract</summary>
+            <ul>
+              <li>Synchronous active-high reset; registered read output.</li>
+              <li>Acceptance uses state immediately before the rising edge.</li>
+              <li>At full: read accepted, write rejected. At empty: write accepted, read rejected.</li>
+              <li>Explicit wrapping supports non-power-of-two depths.</li>
+            </ul>
+          </details>
+
+          <button id="start" class="primary" type="submit">Start verification</button>
+          <p id="form-error" class="error" role="alert"></p>
+        </form>
+      </aside>
+
+      <section class="workspace" aria-labelledby="run-title">
+        <div class="workspace-head">
+          <div>
+            <p class="eyebrow">Current run</p>
+            <h2 id="run-title">Ready for evidence</h2>
+          </div>
+          <div class="run-actions">
+            <span id="status" class="status idle">IDLE</span>
+            <button id="cancel" class="secondary" type="button" hidden>Cancel</button>
+          </div>
+        </div>
+
+        <div id="empty-state" class="empty-state">
+          <div class="scope-line" aria-hidden="true"></div>
+          <p>Choose a bundled case or paste compatible RTL, confirm the contract, and start a run.</p>
+          <dl>
+            <div><dt>Simulator</dt><dd>Verilator 5.050</dd></div>
+            <div><dt>Evidence</dt><dd>Cycle-level + VCD</dd></div>
+            <div><dt>Repair limit</dt><dd>3 candidates</dd></div>
+          </dl>
+        </div>
+
+        <div id="results" hidden>
+          <section class="panel" aria-labelledby="timeline-title">
+            <div class="panel-heading">
+              <h3 id="timeline-title">Run timeline</h3>
+              <code id="run-id"></code>
+            </div>
+            <ol id="timeline" class="timeline" aria-live="polite"></ol>
+          </section>
+
+          <section id="evidence-panel" class="panel" aria-labelledby="evidence-title" hidden>
+            <div class="panel-heading"><h3 id="evidence-title">First mismatch</h3></div>
+            <div class="table-scroll">
+              <table>
+                <thead><tr><th>Cycle</th><th>Signal</th><th>Expected</th><th>Observed</th></tr></thead>
+                <tbody id="evidence-body"></tbody>
+              </table>
+            </div>
+          </section>
+
+          <section id="patch-panel" class="panel" aria-labelledby="patch-title" hidden>
+            <div class="panel-heading"><h3 id="patch-title">Candidate diff</h3></div>
+            <pre id="patch"></pre>
+          </section>
+
+          <section id="artifacts-panel" class="panel" aria-labelledby="artifacts-title" hidden>
+            <div class="panel-heading"><h3 id="artifacts-title">Artifacts</h3></div>
+            <ul id="artifacts" class="artifacts"></ul>
+          </section>
+        </div>
+      </section>
+    </main>
+
+    <footer>Simulation covers listed tests only. No formal-correctness claim is made.</footer>
+  </body>
+</html>
+

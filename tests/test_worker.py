@@ -14,6 +14,8 @@ def test_container_worker_is_networkless_read_only_and_resource_bounded(tmp_path
     assert "--memory 512m" in command
     assert "--cpus 1" in command
     assert "--pids-limit 128" in command
+    assert "fsize=67108864:67108864" in command
+    assert "--env CCACHE_DISABLE=1" in command
     assert "--user" in args
     assert all("NEBIUS" not in value for value in args)
     assert str(tmp_path.resolve()) in command

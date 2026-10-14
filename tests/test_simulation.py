@@ -1,7 +1,8 @@
 from pathlib import Path
 
 from backend.verification.cases import directed_transactions, random_transactions
-from backend.verification.runner import SimulationParameters, run_local_simulation
+from backend.verification.contract import Transaction
+from backend.verification.runner import SimulationParameters, render_testbench, run_local_simulation
 
 
 ROOT = Path(__file__).parents[1]
@@ -23,6 +24,16 @@ def test_random_sequence_is_seeded_and_starts_with_reset() -> None:
 
     assert first == second
     assert first[0].rst is True
+
+
+def test_testbench_masks_stimulus_to_the_declared_data_width() -> None:
+    testbench = render_testbench(
+        [Transaction(rst=False, wr_en=True, rd_en=False, din=0xA5)],
+        SimulationParameters(data_width=1, depth=3),
+    )
+
+    assert "din = 1'h1;" in testbench
+    assert "1'hA5" not in testbench
 
 
 def test_correct_fifo_passes_non_power_of_two_contract(tmp_path: Path) -> None:

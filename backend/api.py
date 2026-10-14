@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import asyncio
+from contextlib import AbstractAsyncContextManager
 from pathlib import Path
-from typing import Annotated, Protocol
+from typing import Annotated, Callable, Protocol
 
 from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
@@ -47,8 +48,11 @@ def _error(status: int, code: str, message: str, details: object | None = None) 
     return JSONResponse(status_code=status, content=body)
 
 
-def create_app(manager: Manager) -> FastAPI:
-    app = FastAPI(title="RTL Detective", version="0.1.0")
+def create_app(
+    manager: Manager,
+    lifespan: Callable[[FastAPI], AbstractAsyncContextManager[None]] | None = None,
+) -> FastAPI:
+    app = FastAPI(title="RTL Detective", version="0.1.0", lifespan=lifespan)
 
     @app.middleware("http")
     async def security_headers(request: Request, call_next):
@@ -87,26 +91,23 @@ def create_app(manager: Manager) -> FastAPI:
             raise HTTPException(404, "run not found") from error
 
     @app.get("/api/runs/{run_id}/events", response_class=EventSourceResponse)
-    async def stream_events(run_id: str) -> EventSourceResponse:
-        async def events():
-            seen = 0
-            while True:
-                try:
-                    record = manager.get_run(run_id)
-                except KeyError:
-                    yield ServerSentEvent(data={"error": "run not found"}, event="error")
-                    return
-                for event in record.get("events", []):
-                    sequence = int(event["sequence"])
-                    if sequence > seen:
-                        seen = sequence
-                        yield ServerSentEvent(data=event, event="run_event", id=str(sequence))
-                if record["status"] in TERMINAL_STATES:
-                    yield ServerSentEvent(data={"status": record["status"]}, event="done")
-                    return
-                await asyncio.sleep(0.25)
-
-        return EventSourceResponse(events())
+    async def stream_events(run_id: str):
+        seen = 0
+        while True:
+            try:
+                record = manager.get_run(run_id)
+            except KeyError:
+                yield ServerSentEvent(data={"error": "run not found"}, event="error")
+                return
+            for event in record.get("events", []):
+                sequence = int(event["sequence"])
+                if sequence > seen:
+                    seen = sequence
+                    yield ServerSentEvent(data=event, event="run_event", id=str(sequence))
+            if record["status"] in TERMINAL_STATES:
+                yield ServerSentEvent(data={"status": record["status"]}, event="done")
+                return
+            await asyncio.sleep(0.25)
 
     @app.post("/api/runs/{run_id}/cancel", status_code=202)
     def cancel_run(run_id: str) -> dict[str, str]:
