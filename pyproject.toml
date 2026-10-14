@@ -1,0 +1,29 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "rtl-detective"
+version = "0.1.0"
+description = "Evidence-first verification and bounded repair for synchronous SystemVerilog FIFOs"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "Apache-2.0" }
+dependencies = [
+  "fastapi==0.143.1",
+  "uvicorn==0.54.0",
+  "vcdvcd==2.6.0",
+]
+
+[project.optional-dependencies]
+test = ["httpx==0.28.1", "pytest==9.0.2"]
+
+[project.scripts]
+rtl-detective = "backend.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["backend"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
