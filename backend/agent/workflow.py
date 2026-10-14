@@ -101,6 +101,9 @@ class RepairWorkflow:
         simulation_timeout_seconds: int = 30,
         on_event: Callable[[RunEvent], None] | None = None,
         is_cancelled: Callable[[], bool] | None = None,
+        simulation_runner: Callable[
+            [Path, list[Transaction], SimulationParameters, Path, int], SimulationOutcome
+        ] = run_local_simulation,
     ) -> None:
         if not 1 <= max_patch_attempts <= 3:
             raise ValueError("max_patch_attempts must be between 1 and 3")
@@ -109,6 +112,7 @@ class RepairWorkflow:
         self.simulation_timeout_seconds = simulation_timeout_seconds
         self.on_event = on_event
         self.is_cancelled = is_cancelled or (lambda: False)
+        self.simulation_runner = simulation_runner
 
     def run(self, source_path: Path, parameters: SimulationParameters, workspace: Path) -> WorkflowReport:
         workspace.mkdir(parents=True, exist_ok=True)
@@ -134,7 +138,7 @@ class RepairWorkflow:
         transactions = directed_transactions(parameters.depth)
         transactions.extend(random_transactions(48, parameters.data_width, seed=1))
         emit("baseline", "Running locked directed and seeded randomized tests")
-        baseline = run_local_simulation(
+        baseline = self.simulation_runner(
             original,
             transactions,
             parameters,
@@ -178,7 +182,7 @@ class RepairWorkflow:
                     Transaction(rst=item.rst, wr_en=item.wr_en, rd_en=item.rd_en, din=item.din)
                     for item in investigation.value.transactions
                 ]
-                investigation_outcome = run_local_simulation(
+                investigation_outcome = self.simulation_runner(
                     original,
                     targeted,
                     parameters,
@@ -227,14 +231,14 @@ class RepairWorkflow:
                     continue
 
                 emit("regression", f"Evaluating candidate {number} against reproducer and locked tests")
-                reproducer = run_local_simulation(
+                reproducer = self.simulation_runner(
                     candidate,
                     targeted,
                     parameters,
                     workspace / f"attempt-{number}" / "reproducer",
                     self.simulation_timeout_seconds,
                 )
-                regression = run_local_simulation(
+                regression = self.simulation_runner(
                     candidate,
                     transactions,
                     parameters,
