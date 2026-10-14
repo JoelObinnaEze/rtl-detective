@@ -1,13 +1,18 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
+from hashlib import sha256
 import os
 from pathlib import Path
 import shlex
 import shutil
 import subprocess
+from uuid import uuid4
 
 from .contract import FifoModel, Snapshot, Transaction, count_width
+
+
+VERILATOR_IMAGE = "verilator/verilator:v5.050"
 
 
 @dataclass(frozen=True)
@@ -262,4 +267,155 @@ def outcome_to_dict(outcome: SimulationOutcome) -> dict[str, object]:
     data = asdict(outcome)
     data["trace_path"] = str(outcome.trace_path) if outcome.trace_path else None
     return data
+
+
+def docker_available() -> bool:
+    try:
+        result = subprocess.run(
+            ["docker", "info", "--format", "{{.ServerVersion}}"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+            check=False,
+        )
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        return False
+    return result.returncode == 0 and bool(result.stdout.strip())
+
+
+def container_security_args(workspace: Path, name: str) -> list[str]:
+    user = "65532:65532" if os.name == "nt" else f"{os.getuid()}:{os.getgid()}"
+    return [
+        "docker",
+        "run",
+        "--name",
+        name,
+        "--rm",
+        "--network",
+        "none",
+        "--read-only",
+        "--cap-drop",
+        "ALL",
+        "--security-opt",
+        "no-new-privileges:true",
+        "--memory",
+        "512m",
+        "--cpus",
+        "1",
+        "--pids-limit",
+        "128",
+        "--ulimit",
+        "fsize=65536:65536",
+        "--tmpfs",
+        "/tmp:rw,noexec,nosuid,size=67108864",
+        "--user",
+        user,
+        "--mount",
+        f"type=bind,source={workspace.resolve()},target=/work",
+    ]
+
+
+def _docker_script(workspace: Path, script: str, timeout_seconds: int) -> subprocess.CompletedProcess[str]:
+    name = f"rtl-detective-{uuid4().hex[:12]}"
+    command = container_security_args(workspace, name) + [
+        "--entrypoint",
+        "/bin/sh",
+        VERILATOR_IMAGE,
+        "-lc",
+        f"cd /work && {script}",
+    ]
+    process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    try:
+        stdout, stderr = process.communicate(timeout=timeout_seconds)
+    except subprocess.TimeoutExpired:
+        subprocess.run(["docker", "kill", name], capture_output=True, timeout=10, check=False)
+        process.kill()
+        stdout, stderr = process.communicate()
+        raise subprocess.TimeoutExpired(command, timeout_seconds, stdout, stderr)
+    return subprocess.CompletedProcess(command, process.returncode, stdout, stderr)
+
+
+def run_container_simulation(
+    source: Path,
+    transactions: list[Transaction],
+    parameters: SimulationParameters,
+    workspace: Path,
+    timeout_seconds: int = 20,
+) -> SimulationOutcome:
+    if source.is_symlink():
+        return SimulationOutcome(
+            "invalid_input", parameters, [], [], "", "symlink sources are not supported", None, None
+        )
+    if not docker_available():
+        return SimulationOutcome(
+            "infrastructure_failure",
+            parameters,
+            [],
+            [],
+            "",
+            "Docker worker is unavailable; untrusted RTL was not executed",
+            None,
+            None,
+        )
+
+    workspace.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(source, workspace / "dut.sv")
+    testbench = workspace / "tb.sv"
+    testbench.write_text(render_testbench(transactions, parameters), encoding="utf-8")
+    locked_hash = sha256(testbench.read_bytes()).hexdigest()
+    try:
+        version_result = _docker_script(workspace, "verilator --version", 30)
+        compiled = _docker_script(
+            workspace,
+            "verilator --binary --timing --trace --top-module tb --Mdir obj_dir -j 0 "
+            "--Wno-fatal dut.sv tb.sv -o sim",
+            timeout_seconds,
+        )
+    except subprocess.TimeoutExpired as error:
+        return SimulationOutcome("simulation_timeout", parameters, [], [], error.stdout or "", error.stderr or "", None, None)
+    version = version_result.stdout.strip() or f"container {VERILATOR_IMAGE}"
+    if compiled.returncode != 0:
+        status = "infrastructure_failure" if "docker:" in compiled.stderr.lower() else "compile_failure"
+        return SimulationOutcome(status, parameters, [], [], compiled.stdout, compiled.stderr, version, None)
+
+    try:
+        simulated = _docker_script(workspace, "./obj_dir/sim", timeout_seconds)
+    except subprocess.TimeoutExpired as error:
+        return SimulationOutcome("simulation_timeout", parameters, [], [], error.stdout or "", error.stderr or "", version, None)
+    if sha256(testbench.read_bytes()).hexdigest() != locked_hash:
+        return SimulationOutcome(
+            "infrastructure_failure",
+            parameters,
+            [],
+            [],
+            simulated.stdout,
+            "locked testbench changed during simulation",
+            version,
+            None,
+        )
+
+    observations = _parse_observations(simulated.stdout)
+    trace = workspace / "trace.vcd"
+    if simulated.returncode != 0:
+        return SimulationOutcome(
+            "infrastructure_failure",
+            parameters,
+            [],
+            observations,
+            simulated.stdout,
+            simulated.stderr,
+            version,
+            trace if trace.exists() else None,
+        )
+    failures = _compare(transactions, parameters, observations)
+    return SimulationOutcome(
+        "functional_mismatch" if failures else "passed",
+        parameters,
+        failures,
+        observations,
+        simulated.stdout,
+        compiled.stderr + simulated.stderr,
+        version,
+        trace if trace.exists() else None,
+    )
 
