@@ -9,7 +9,7 @@ import shutil
 import zipfile
 
 from backend.agent.workflow import RepairWorkflow, RunEvent, WorkflowReport
-from backend.api import CreateRunRequest
+from backend.api import CreateRunRequest, TERMINAL_STATES
 from backend.providers.nebius import NebiusProvider, ProviderError
 from backend.storage import RunStore
 from backend.verification.runner import (
@@ -96,7 +96,8 @@ class RunManager:
 
         def on_event(event: RunEvent) -> None:
             self.store.append_event(run_id, event.state, event.message)
-            self.store.update_run(run_id, event.state)
+            if event.state not in TERMINAL_STATES:
+                self.store.update_run(run_id, event.state)
 
         try:
             simulation_runner = run_container_simulation if source_kind == "upload" or docker_available() else run_local_simulation

@@ -21,3 +21,17 @@ def test_frontend_does_not_render_server_content_as_html() -> None:
     assert ".innerHTML" not in script
     assert ".textContent" in script
 
+
+def test_frontend_explains_the_verification_pipeline_and_uses_precise_motion() -> None:
+    html = (ROOT / "frontend/index.html").read_text(encoding="utf-8")
+    styles = (ROOT / "frontend/styles.css").read_text(encoding="utf-8")
+
+    assert 'aria-label="Verification pipeline"' in html
+    assert html.count('class="pipeline-step"') == 4
+    assert 'class="button-label">Start verification</span>' in html
+    assert '<link rel="icon" href="/favicon.svg" type="image/svg+xml">' in html
+    assert (ROOT / "frontend/favicon.svg").is_file()
+    assert "transition: all" not in styles
+    assert ":active:not(:focus-visible)" in styles
+    assert "prefers-reduced-motion: reduce" in styles
+

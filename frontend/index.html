@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="description" content="Evidence-first verification and bounded repair for small SystemVerilog FIFOs.">
     <title>RTL Detective</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml">
     <link rel="stylesheet" href="/styles.css">
     <script src="/app.js" defer></script>
   </head>
@@ -12,22 +13,28 @@
     <header class="topbar">
       <a class="brand" href="/" aria-label="RTL Detective home">
         <span class="brand-mark" aria-hidden="true">RD</span>
-        <span>RTL Detective</span>
+        <span class="brand-copy">
+          <strong>RTL Detective</strong>
+          <small>Hardware verification workspace</small>
+        </span>
       </a>
-      <div class="mode"><span class="pulse" aria-hidden="true"></span> LIVE WORKFLOW · NEBIUS FOR REPAIRS</div>
+      <div class="mode"><span class="pulse" aria-hidden="true"></span><span>Live workflow · Nebius for repairs</span></div>
     </header>
 
     <main class="shell">
       <aside class="setup" aria-labelledby="setup-title">
-        <div>
-          <p class="eyebrow">Verification setup</p>
+        <div class="setup-intro">
+          <p class="eyebrow"><span>01</span> Verification setup</p>
           <h1 id="setup-title">Find the failing cycle.</h1>
           <p class="lede">Test one canonical synchronous FIFO, inspect the evidence, and evaluate a bounded repair.</p>
+          <div class="capability-strip" aria-label="Workflow capabilities">
+            <span>Simulate</span><span>Diagnose</span><span>Repair</span>
+          </div>
         </div>
 
         <form id="run-form">
           <fieldset>
-            <legend>RTL source</legend>
+            <legend><span>02</span> RTL source</legend>
             <label for="example">Bundled case</label>
             <select id="example" name="exampleId" required>
               <option value="">Loading examples…</option>
@@ -44,7 +51,7 @@
           </fieldset>
 
           <fieldset>
-            <legend>Parameters</legend>
+            <legend><span>03</span> Parameters</legend>
             <div class="parameter-grid">
               <label for="data-width">Data width
                 <input id="data-width" type="number" min="1" max="64" value="8" required>
@@ -65,7 +72,10 @@
             </ul>
           </details>
 
-          <button id="start" class="primary" type="submit">Start verification</button>
+          <button id="start" class="primary" type="submit">
+            <span class="button-label">Start verification</span>
+            <span class="button-glyph" aria-hidden="true">↗</span>
+          </button>
           <p id="form-error" class="error" role="alert"></p>
         </form>
       </aside>
@@ -83,12 +93,18 @@
         </div>
 
         <div id="empty-state" class="empty-state">
-          <div class="scope-line" aria-hidden="true"></div>
-          <p>Choose a bundled case or paste compatible RTL, confirm the contract, and start a run.</p>
+          <p class="eyebrow empty-kicker"><span>Signal path</span> Ready for input</p>
+          <div class="pipeline" aria-label="Verification pipeline">
+            <div class="pipeline-step"><span>01</span><strong>RTL DUT</strong><small>Canonical FIFO</small></div>
+            <div class="pipeline-step"><span>02</span><strong>Verilator</strong><small>Compile + trace</small></div>
+            <div class="pipeline-step"><span>03</span><strong>Oracle</strong><small>Cycle compare</small></div>
+            <div class="pipeline-step"><span>04</span><strong>Evidence</strong><small>Report + patch</small></div>
+          </div>
+          <p class="empty-copy">Choose a bundled case or paste compatible RTL. The runner will preserve the first mismatch and only accept a repair that passes the locked regression suite.</p>
           <dl>
-            <div><dt>Simulator</dt><dd>Verilator 5.050</dd></div>
-            <div><dt>Evidence</dt><dd>Cycle-level + VCD</dd></div>
-            <div><dt>Repair limit</dt><dd>3 candidates</dd></div>
+            <div><dt>Engine</dt><dd>Verilator 5.050</dd></div>
+            <div><dt>Trace</dt><dd>Cycle data + VCD</dd></div>
+            <div><dt>Repair budget</dt><dd>≤ 3 candidates</dd></div>
           </dl>
         </div>
 
@@ -124,7 +140,7 @@
       </section>
     </main>
 
-    <footer>Simulation covers listed tests only. No formal-correctness claim is made.</footer>
+    <footer><span>RTL Detective · local evidence workspace</span><span>Simulation covers listed tests only. No formal-correctness claim is made.</span></footer>
   </body>
 </html>
 
