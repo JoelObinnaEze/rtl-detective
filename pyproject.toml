@@ -11,12 +11,13 @@ requires-python = ">=3.11"
 license = { text = "Apache-2.0" }
 dependencies = [
   "fastapi==0.143.1",
+  "httpx==0.28.1",
   "uvicorn==0.54.0",
   "vcdvcd==2.6.0",
 ]
 
 [project.optional-dependencies]
-test = ["httpx==0.28.1", "pytest==9.0.2"]
+test = ["pytest==9.0.2"]
 
 [project.scripts]
 rtl-detective = "backend.cli:main"
