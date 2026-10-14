@@ -6,6 +6,7 @@ __pycache__/
 !.env.example
 artifacts/
 .pytest_cache/
+.test-tmp/
 .mypy_cache/
 frontend/.cache/
 
