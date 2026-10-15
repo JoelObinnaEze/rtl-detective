@@ -3,7 +3,19 @@ from pathlib import Path
 from vcdvcd import VCDVCD
 
 
-CANONICAL_SIGNALS = ("clk", "rst", "wr_en", "rd_en", "din", "dout", "full", "empty", "count")
+CANONICAL_SIGNALS = (
+    "clk",
+    "rst",
+    "wr_en",
+    "rd_en",
+    "din",
+    "dout",
+    "full",
+    "empty",
+    "count",
+    "request",
+    "grant",
+)
 
 
 def extract_signal_changes(vcd_path: Path, start_time: int = 0, end_time: int | None = None) -> dict[str, object]:

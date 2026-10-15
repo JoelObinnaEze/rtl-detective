@@ -3,7 +3,7 @@ import json
 import httpx
 import pytest
 
-from backend.providers.nebius import InvestigationAction, NebiusProvider, ProviderError
+from backend.providers.nebius import InvestigationAction, NebiusProvider, ProviderError, TransactionAction
 
 
 def test_discovers_only_available_nvidia_models() -> None:
@@ -97,4 +97,10 @@ def test_malformed_model_output_is_a_provider_error() -> None:
 
     with pytest.raises(ProviderError, match="structured response"):
         provider.investigate("bounded evidence")
+
+
+def test_investigation_transaction_can_describe_an_arbiter_request() -> None:
+    action = TransactionAction(rst=False, request=0b101)
+
+    assert action.request == 0b101
 

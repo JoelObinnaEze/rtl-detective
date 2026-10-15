@@ -18,6 +18,7 @@ from backend.verification.runner import (
     run_container_simulation,
     run_local_simulation,
 )
+from backend.verification.packs import get_contract_pack
 from backend.verification.security import validate_source
 from backend.verification.trace import extract_signal_changes
 
@@ -46,31 +47,51 @@ class RunManager:
         self._examples = json.loads(manifest_path.read_text(encoding="utf-8"))
 
     def examples(self) -> list[dict[str, object]]:
-        return [
-            {"id": item["id"], "dataWidth": item["data_width"], "depth": item["depth"]}
-            for item in self._examples
-        ]
+        examples = []
+        for item in self._examples:
+            contract_id = item.get("contract_id", "fifo")
+            public = {"id": item["id"], "contractId": contract_id}
+            if contract_id == "arbiter":
+                public["requesters"] = item["requesters"]
+            else:
+                public.update({"dataWidth": item["data_width"], "depth": item["depth"]})
+            examples.append(public)
+        return examples
 
     def submit(self, request: CreateRunRequest, idempotency_key: str | None) -> str:
         if request.example_id:
             item = next((entry for entry in self._examples if entry["id"] == request.example_id), None)
             if item is None:
                 raise ValueError("unknown exampleId")
+            contract_id = str(item.get("contract_id", "fifo"))
+            if "contract_id" in request.model_fields_set and request.contract_id != contract_id:
+                raise ValueError("contractId does not match the selected example")
             source = (self.benchmark_root / item["source"]).read_text(encoding="utf-8")
             source_kind = "example"
         else:
+            contract_id = request.contract_id
             if not docker_available():
                 raise RuntimeError("uploaded RTL requires the isolated Docker worker, which is unavailable")
             source = request.source or ""
             source_kind = "upload"
-        validate_source(source)
+        parameters = SimulationParameters(
+            contract_id=contract_id,
+            data_width=request.data_width,
+            depth=request.depth,
+            requesters=request.requesters,
+        )
+        validate_source(source, contract_id)
 
-        parameters = {"data_width": request.data_width, "depth": request.depth}
+        stored_parameters: dict[str, int | str] = {"contract_id": contract_id}
+        if contract_id == "arbiter":
+            stored_parameters["requesters"] = request.requesters
+        else:
+            stored_parameters.update({"data_width": request.data_width, "depth": request.depth})
         request_hash = sha256(
             json.dumps(request.model_dump(by_alias=True), sort_keys=True, separators=(",", ":")).encode()
         ).hexdigest()
         run_id = self.store.create_run(
-            parameters,
+            stored_parameters,
             provider_mode="live",
             source_kind=source_kind,
             idempotency_key=idempotency_key,
@@ -83,7 +104,7 @@ class RunManager:
         source_path = run_root / "original.sv"
         source_path.write_text(source, encoding="utf-8")
         self.store.append_event(run_id, "queued", "Run accepted by the single-worker queue")
-        self.executor.submit(self._execute, run_id, source_path, source_kind, request.data_width, request.depth)
+        self.executor.submit(self._execute, run_id, source_path, source_kind, parameters)
         return run_id
 
     def _provider(self):
@@ -91,7 +112,9 @@ class RunManager:
             return NebiusProvider.from_env()
         return _UnavailableProvider()
 
-    def _execute(self, run_id: str, source: Path, source_kind: str, data_width: int, depth: int) -> None:
+    def _execute(
+        self, run_id: str, source: Path, source_kind: str, parameters: SimulationParameters
+    ) -> None:
         run_root = self.runs_root / run_id
 
         def on_event(event: RunEvent) -> None:
@@ -111,7 +134,7 @@ class RunManager:
             )
             report = workflow.run(
                 source,
-                SimulationParameters(data_width=data_width, depth=depth),
+                parameters,
                 run_root / "work",
             )
             self._write_artifacts(run_root, report)
@@ -125,13 +148,15 @@ class RunManager:
         report_json = run_root / "report.json"
         report_json.write_text(json.dumps(report.to_dict(), indent=2, default=str), encoding="utf-8")
         first_failure = report.baseline.failures[0] if report.baseline.failures else None
+        pack = get_contract_pack(report.parameters.contract_id)
         lines = [
             "# RTL Detective report",
             "",
             f"- Status: `{report.status}`",
             f"- Verdict: `{report.verdict}`",
             f"- Source SHA-256: `{report.source_hash}`",
-            f"- Parameters: DATA_WIDTH={report.parameters.data_width}, DEPTH={report.parameters.depth}",
+            f"- Contract: `{pack.id}`",
+            f"- Parameters: {pack.parameter_summary(report.parameters)}",
             f"- Simulator: {report.baseline.simulator_version or 'unavailable'}",
             "",
             "## Evidence",

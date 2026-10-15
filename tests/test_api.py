@@ -9,9 +9,11 @@ class StubManager:
     def __init__(self, artifact: Path) -> None:
         self.artifact = artifact
         self.cancelled: list[str] = []
+        self.submitted: list[object] = []
 
     def submit(self, request: object, idempotency_key: str | None) -> str:
         assert idempotency_key == "intent-1"
+        self.submitted.append(request)
         return "run-1"
 
     def get_run(self, run_id: str) -> dict[str, object]:
@@ -72,6 +74,24 @@ def test_create_run_requires_exactly_one_source(tmp_path: Path) -> None:
 
     assert response.status_code == 422
     assert response.json()["error"]["code"] == "VALIDATION_ERROR"
+
+
+def test_run_api_accepts_round_robin_arbiter_parameters(tmp_path: Path) -> None:
+    artifact = tmp_path / "report.json"
+    artifact.write_text("{}", encoding="utf-8")
+    manager = StubManager(artifact)
+    client = TestClient(create_app(manager))
+
+    response = client.post(
+        "/api/runs",
+        headers={"Idempotency-Key": "intent-1"},
+        json={"exampleId": "arbiter-case-003", "contractId": "arbiter", "requesters": 3},
+    )
+
+    assert response.status_code == 202
+    request = manager.submitted[0]
+    assert request.contract_id == "arbiter"
+    assert request.requesters == 3
 
 
 def test_cancel_and_artifact_download(tmp_path: Path) -> None:

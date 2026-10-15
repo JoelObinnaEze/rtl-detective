@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 from contextlib import AbstractAsyncContextManager
 from pathlib import Path
-from typing import Annotated, Callable, Protocol
+from typing import Annotated, Callable, Literal, Protocol
 
 from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
@@ -22,8 +22,10 @@ class CreateRunRequest(BaseModel):
 
     example_id: str | None = Field(default=None, alias="exampleId", max_length=64)
     source: str | None = Field(default=None, max_length=256 * 1024)
+    contract_id: Literal["fifo", "arbiter"] = Field(default="fifo", alias="contractId")
     data_width: int = Field(default=8, alias="dataWidth", ge=1, le=64)
     depth: int = Field(default=4, ge=1, le=1024)
+    requesters: int = Field(default=4, ge=2, le=32)
 
     @model_validator(mode="after")
     def exactly_one_source(self) -> "CreateRunRequest":

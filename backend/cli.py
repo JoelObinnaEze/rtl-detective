@@ -12,14 +12,16 @@ from backend.service import RunManager
 
 
 def _parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="rtl-detective", description="Verify and diagnose a canonical FIFO")
+    parser = argparse.ArgumentParser(prog="rtl-detective", description="Verify and diagnose canonical RTL blocks")
     subcommands = parser.add_subparsers(dest="command", required=True)
 
     verify = subcommands.add_parser("verify", help="run the locked verification workflow")
     verify.add_argument("--example", default="case-005")
     verify.add_argument("--source", type=Path)
+    verify.add_argument("--contract", choices=("fifo", "arbiter"))
     verify.add_argument("--data-width", type=int, default=8)
     verify.add_argument("--depth", type=int, default=3)
+    verify.add_argument("--requesters", type=int, default=4)
     verify.add_argument("--artifacts", type=Path, default=Path("artifacts"))
 
     subcommands.add_parser("models", help="list NVIDIA/Nemotron model IDs available to this account")
@@ -33,15 +35,18 @@ def _parser() -> argparse.ArgumentParser:
 def _verify(args: argparse.Namespace) -> int:
     manager = RunManager(args.artifacts)
     try:
-        request = (
-            CreateRunRequest(
-                source=args.source.read_text(encoding="utf-8"),
-                dataWidth=args.data_width,
-                depth=args.depth,
-            )
-            if args.source
-            else CreateRunRequest(exampleId=args.example, dataWidth=args.data_width, depth=args.depth)
-        )
+        request_data = {
+            "dataWidth": args.data_width,
+            "depth": args.depth,
+            "requesters": args.requesters,
+            **({"contractId": args.contract} if args.contract else {}),
+            **(
+                {"source": args.source.read_text(encoding="utf-8")}
+                if args.source
+                else {"exampleId": args.example}
+            ),
+        }
+        request = CreateRunRequest.model_validate(request_data)
         run_id = manager.submit(request, None)
         print(f"run {run_id}")
         seen = 0

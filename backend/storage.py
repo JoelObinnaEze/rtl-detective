@@ -62,7 +62,7 @@ class RunStore:
 
     def create_run(
         self,
-        parameters: dict[str, int],
+        parameters: dict[str, int | str],
         provider_mode: str,
         source_kind: str,
         idempotency_key: str | None = None,

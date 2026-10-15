@@ -100,3 +100,20 @@ def test_reproduced_bug_is_patched_and_independently_retested(tmp_path: Path) ->
     assert provider.investigation_calls == 1
     assert provider.patch_calls == 1
 
+
+def test_correct_arbiter_uses_its_contract_without_a_model_call(tmp_path: Path) -> None:
+    source_path = ROOT / "benchmark/designs/arbiter/correct/reference_arbiter.sv"
+    provider = FakeProvider(source_path.read_text(encoding="utf-8"))
+
+    report = RepairWorkflow(provider=provider).run(
+        source_path,
+        SimulationParameters(contract_id="arbiter", requesters=3),
+        tmp_path,
+    )
+
+    assert report.status == "completed"
+    assert report.parameters.contract_id == "arbiter"
+    assert report.verdict == "no_failure_found_in_tested_cases"
+    assert "round-robin arbiter" in report.limitations[1]
+    assert provider.investigation_calls == 0
+

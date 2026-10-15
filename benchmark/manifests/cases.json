@@ -1,9 +1,13 @@
 [
-  {"id": "case-001", "source": "designs/buggy/simultaneous_count.sv", "expected": "functional_mismatch", "data_width": 8, "depth": 3},
-  {"id": "case-002", "source": "designs/buggy/pointer_wrap.sv", "expected": "functional_mismatch", "data_width": 8, "depth": 3},
-  {"id": "case-003", "source": "designs/buggy/full_detection.sv", "expected": "functional_mismatch", "data_width": 8, "depth": 4},
-  {"id": "case-004", "source": "designs/buggy/reset_handling.sv", "expected": "functional_mismatch", "data_width": 8, "depth": 3},
-  {"id": "case-005", "source": "designs/correct/reference_fifo.sv", "expected": "passed", "data_width": 8, "depth": 3},
-  {"id": "case-006", "source": "designs/correct/next_state_fifo.sv", "expected": "passed", "data_width": 8, "depth": 3}
+  {"id": "case-001", "contract_id": "fifo", "source": "designs/buggy/simultaneous_count.sv", "expected": "functional_mismatch", "data_width": 8, "depth": 3},
+  {"id": "case-002", "contract_id": "fifo", "source": "designs/buggy/pointer_wrap.sv", "expected": "functional_mismatch", "data_width": 8, "depth": 3},
+  {"id": "case-003", "contract_id": "fifo", "source": "designs/buggy/full_detection.sv", "expected": "functional_mismatch", "data_width": 8, "depth": 4},
+  {"id": "case-004", "contract_id": "fifo", "source": "designs/buggy/reset_handling.sv", "expected": "functional_mismatch", "data_width": 8, "depth": 3},
+  {"id": "case-005", "contract_id": "fifo", "source": "designs/correct/reference_fifo.sv", "expected": "passed", "data_width": 8, "depth": 3},
+  {"id": "case-006", "contract_id": "fifo", "source": "designs/correct/next_state_fifo.sv", "expected": "passed", "data_width": 8, "depth": 3},
+  {"id": "arbiter-case-001", "contract_id": "arbiter", "source": "designs/arbiter/buggy/fixed_priority.sv", "expected": "functional_mismatch", "requesters": 3},
+  {"id": "arbiter-case-002", "contract_id": "arbiter", "source": "designs/arbiter/buggy/grant_all.sv", "expected": "functional_mismatch", "requesters": 4},
+  {"id": "arbiter-case-003", "contract_id": "arbiter", "source": "designs/arbiter/correct/reference_arbiter.sv", "expected": "passed", "requesters": 3},
+  {"id": "arbiter-case-004", "contract_id": "arbiter", "source": "designs/arbiter/correct/rotating_mask_arbiter.sv", "expected": "passed", "requesters": 5}
 ]
 

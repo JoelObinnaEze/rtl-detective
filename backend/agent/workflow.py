@@ -7,8 +7,7 @@ import shutil
 from typing import Callable, Protocol
 
 from backend.providers.nebius import InvestigationAction, ModelReply, PatchAction, ProviderError
-from backend.verification.cases import directed_transactions, random_transactions
-from backend.verification.contract import Transaction
+from backend.verification.packs import ContractPack, get_contract_pack
 from backend.verification.runner import (
     SimulationOutcome,
     SimulationParameters,
@@ -16,11 +15,6 @@ from backend.verification.runner import (
     run_local_simulation,
 )
 from backend.verification.security import PatchRejected, apply_candidate_patch, hash_locked_assets, validate_source
-
-
-CONTRACT_SUMMARY = """Single-clock FIFO contract: synchronous active-high reset; registered dout; pre-edge acceptance;
-full simultaneous read/write accepts read only; empty simultaneous accepts write only; partial simultaneous accepts both;
-reset clears queue, count, and dout; explicit non-power-of-two wrapping; no fall-through."""
 
 
 class Provider(Protocol):
@@ -78,12 +72,12 @@ def _provider_record(reply: ModelReply[object]) -> dict[str, object]:
     }
 
 
-def _evidence(source: str, outcome: SimulationOutcome, note: str = "") -> str:
+def _evidence(source: str, outcome: SimulationOutcome, pack: ContractPack, note: str = "") -> str:
     failure = outcome.failures[0] if outcome.failures else None
     return "\n".join(
         [
-            CONTRACT_SUMMARY,
-            f"Parameters: DATA_WIDTH={outcome.parameters.data_width}, DEPTH={outcome.parameters.depth}",
+            pack.summary,
+            f"Parameters: {pack.parameter_summary(outcome.parameters)}",
             f"Simulation status: {outcome.status}",
             f"Failure: {asdict(failure) if failure else 'none'}",
             f"Additional result: {note}",
@@ -102,7 +96,7 @@ class RepairWorkflow:
         on_event: Callable[[RunEvent], None] | None = None,
         is_cancelled: Callable[[], bool] | None = None,
         simulation_runner: Callable[
-            [Path, list[Transaction], SimulationParameters, Path, int], SimulationOutcome
+            [Path, list[object], SimulationParameters, Path, int], SimulationOutcome
         ] = run_local_simulation,
     ) -> None:
         if not 1 <= max_patch_attempts <= 3:
@@ -117,7 +111,8 @@ class RepairWorkflow:
     def run(self, source_path: Path, parameters: SimulationParameters, workspace: Path) -> WorkflowReport:
         workspace.mkdir(parents=True, exist_ok=True)
         source = source_path.read_text(encoding="utf-8")
-        validate_source(source)
+        pack = get_contract_pack(parameters.contract_id)
+        validate_source(source, pack.id)
         original = workspace / "original.sv"
         original.write_text(source, encoding="utf-8")
         source_hash = sha256(original.read_bytes()).hexdigest()
@@ -131,12 +126,11 @@ class RepairWorkflow:
             if self.on_event:
                 self.on_event(event)
 
-        emit("validating", "Source and canonical interface validated")
+        emit("validating", f"Source and {pack.name} interface validated")
         if self.is_cancelled():
             return self._finish("cancelled", "cancelled", source_hash, parameters, self._empty(parameters), [], events, locked_before, None)
 
-        transactions = directed_transactions(parameters.depth)
-        transactions.extend(random_transactions(48, parameters.data_width, seed=1))
+        transactions = pack.regression_transactions(parameters)
         emit("baseline", "Running locked directed and seeded randomized tests")
         baseline = self.simulation_runner(
             original,
@@ -177,11 +171,8 @@ class RepairWorkflow:
                     return self._finish("cancelled", "cancelled", source_hash, parameters, baseline, attempts, events, locked_before, None)
 
                 emit("investigating", f"Requesting bounded investigation {number}")
-                investigation = self.provider.investigate(_evidence(source, baseline, feedback))
-                targeted = [
-                    Transaction(rst=item.rst, wr_en=item.wr_en, rd_en=item.rd_en, din=item.din)
-                    for item in investigation.value.transactions
-                ]
+                investigation = self.provider.investigate(_evidence(source, baseline, pack, feedback))
+                targeted = [pack.transaction_from_action(item) for item in investigation.value.transactions]
                 investigation_outcome = self.simulation_runner(
                     original,
                     targeted,
@@ -208,12 +199,12 @@ class RepairWorkflow:
 
                 emit("patching", f"Failure reproduced; requesting candidate patch {number}")
                 patch_reply = self.provider.propose_patch(
-                    _evidence(source, investigation_outcome, investigation.value.hypothesis)
+                    _evidence(source, investigation_outcome, pack, investigation.value.hypothesis)
                 )
                 records.append(_provider_record(patch_reply))
                 candidate_dir = workspace / f"attempt-{number}" / "candidate"
                 try:
-                    candidate = apply_candidate_patch(original, patch_reply.value.diff, candidate_dir)
+                    candidate = apply_candidate_patch(original, patch_reply.value.diff, candidate_dir, pack.id)
                 except PatchRejected as error:
                     attempts.append(
                         AttemptReport(
@@ -313,7 +304,7 @@ class RepairWorkflow:
             final_candidate=candidate,
             limitations=[
                 "Simulation demonstrates only the listed configurations and seeds; it is not a formal proof.",
-                "Only the selected canonical single-clock FIFO contract is supported.",
+                get_contract_pack(parameters.contract_id).limitation,
             ],
         )
 

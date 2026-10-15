@@ -18,9 +18,11 @@ def test_examples_expose_opaque_ids_without_hidden_labels(tmp_path: Path) -> Non
 
     examples = manager.examples()
 
-    assert len(examples) == 6
+    assert len(examples) == 10
     assert examples[0]["id"].startswith("case-")
     assert all("expected" not in item and "source" not in item for item in examples)
+    assert {item["contractId"] for item in examples} == {"fifo", "arbiter"}
+    assert any(item.get("requesters") == 3 for item in examples if item["contractId"] == "arbiter")
     manager.shutdown()
 
 

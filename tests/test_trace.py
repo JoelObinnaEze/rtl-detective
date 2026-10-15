@@ -11,18 +11,24 @@ $scope module tb $end
 $var wire 1 ! clk $end
 $var wire 1 \" rst $end
 $var wire 2 # count [1:0] $end
+$var wire 3 $ request [2:0] $end
+$var wire 3 % grant [2:0] $end
 $upscope $end
 $enddefinitions $end
 #0
 0!
 1\"
 b00 #
+b111 $
+b000 %
 #5
 1!
 #10
 0!
 0\"
 b01 #
+b101 $
+b100 %
 """,
         encoding="ascii",
     )
@@ -35,4 +41,5 @@ b01 #
         {"time": 10, "value": "0"},
     ]
     assert window["signals"]["count"]["changes"] == [{"time": 10, "value": "01"}]
+    assert window["signals"]["grant"]["changes"] == [{"time": 10, "value": "100"}]
 
