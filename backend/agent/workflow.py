@@ -5,6 +5,7 @@ from hashlib import sha256
 from pathlib import Path
 from typing import Callable, Protocol
 
+from backend.agent.proof import IntegrityProof, OutcomeSummary, RunLimits, derive_claim, summarize_outcome
 from backend.providers.nebius import InvestigationAction, ModelReply, PatchAction, ProviderError
 from backend.verification.packs import ContractPack, get_contract_pack
 from backend.verification.runner import (
@@ -53,11 +54,17 @@ class WorkflowReport:
     locked_hashes_after: dict[str, str]
     final_candidate: Path | None
     limitations: list[str]
+    schema_version: int
+    run_limits: RunLimits
+    claim: str
+    integrity: IntegrityProof
+    baseline_summary: OutcomeSummary
 
     def to_dict(self) -> dict[str, object]:
         data = asdict(self)
         data["baseline"] = outcome_to_dict(self.baseline)
-        data["final_candidate"] = str(self.final_candidate) if self.final_candidate else None
+        data["baseline"]["trace_path"] = self.baseline_summary.trace_artifact  # type: ignore[index]
+        data["final_candidate"] = "candidate.sv" if self.final_candidate else None
         return data
 
 
@@ -274,8 +281,8 @@ class RepairWorkflow:
     def _empty(parameters: SimulationParameters) -> SimulationOutcome:
         return SimulationOutcome("cancelled", parameters, [], [], "", "", None, None)
 
-    @staticmethod
     def _finish(
+        self,
         status: str,
         verdict: str,
         source_hash: str,
@@ -290,6 +297,15 @@ class RepairWorkflow:
         locked_after = hash_locked_assets(project_root)
         if locked_after != locked_before:
             status, verdict, candidate = "infrastructure_error", "locked_assets_changed", None
+        integrity = IntegrityProof(source_hash, locked_before, locked_after)
+        last_attempt = attempts[-1] if attempts else None
+        claim = derive_claim(
+            verdict,
+            baseline_status=baseline.status,
+            reproducer_status=last_attempt.reproducer_status if last_attempt else None,
+            regression_status=last_attempt.regression_status if last_attempt else None,
+            locked_assets_unchanged=integrity.locked_assets_unchanged,
+        )
         return WorkflowReport(
             status=status,
             verdict=verdict,
@@ -305,5 +321,14 @@ class RepairWorkflow:
                 "Simulation demonstrates only the listed configurations and seeds; it is not a formal proof.",
                 get_contract_pack(parameters.contract_id).limitation,
             ],
+            schema_version=1,
+            run_limits=RunLimits(self.max_patch_attempts, self.simulation_timeout_seconds),
+            claim=claim,
+            integrity=integrity,
+            baseline_summary=summarize_outcome(
+                baseline,
+                transaction_count=len(baseline.observations),
+                trace_artifact="trace.vcd" if baseline.trace_path else None,
+            ),
         )
 

@@ -79,6 +79,17 @@ def test_correct_fifo_finishes_without_model_or_patch(tmp_path: Path) -> None:
     assert report.attempts == []
     assert provider.investigation_calls == 0
     assert provider.patch_calls == 0
+    serialized = report.to_dict()
+    assert serialized["schema_version"] == 1
+    assert serialized["run_limits"] == {
+        "max_patch_attempts": 3,
+        "simulation_timeout_seconds": 30,
+    }
+    assert serialized["claim"] == "No failure found in tested cases."
+    assert serialized["integrity"]["locked_assets_unchanged"] is True
+    assert serialized["baseline_summary"]["status"] == "passed"
+    assert serialized["baseline"]["trace_path"] == "trace.vcd"
+    assert str(tmp_path) not in str(serialized)
 
 
 def test_reproduced_bug_is_patched_and_independently_retested(tmp_path: Path) -> None:

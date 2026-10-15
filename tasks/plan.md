@@ -39,7 +39,7 @@ SimulationOutcome + model replies + executed transactions
 
 ### Phase 1: Executed proof
 
-- [ ] Task 1: Emit proof for deterministic baseline runs
+- [x] Task 1: Emit proof for deterministic baseline runs
 - [ ] Task 2: Capture the complete model-assisted attempt trail
 
 ### Checkpoint: Workflow proof

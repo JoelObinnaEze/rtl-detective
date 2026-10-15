@@ -6,14 +6,14 @@
 
 **Acceptance criteria:**
 
-- [ ] Existing report fields remain present while `schema_version`, `run_limits`, `claim`, `integrity`, and a baseline evidence summary are added.
-- [ ] Claims are derived deterministically from executed status/verdict values, and a correct design makes zero provider calls.
-- [ ] Trace references are relative artifact paths or `null`; no absolute host path is serialized.
+- [x] Existing report fields remain present while `schema_version`, `run_limits`, `claim`, `integrity`, and a baseline evidence summary are added.
+- [x] Claims are derived deterministically from executed status/verdict values, and a correct design makes zero provider calls.
+- [x] Trace references are relative artifact paths or `null`; no absolute host path is serialized.
 
 **Verification:**
 
-- [ ] Red-first tests pass: `.\.venv\Scripts\python.exe -m pytest tests/test_proof.py tests/test_workflow.py -q`
-- [ ] Static check passes: `ruff check backend/agent/proof.py backend/agent/workflow.py tests/test_proof.py tests/test_workflow.py`
+- [x] Red-first tests pass: `.\.venv\Scripts\python.exe -m pytest tests/test_proof.py tests/test_workflow.py -q`
+- [x] Static check passes: `ruff check backend/agent/proof.py backend/agent/workflow.py tests/test_proof.py tests/test_workflow.py`
 
 **Dependencies:** None
 
