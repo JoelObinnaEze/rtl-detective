@@ -119,12 +119,6 @@ Verified locally on October 14, 2026:
 
 Judge and submission material: [submission copy](SUBMISSION.md), [three-minute demo script](docs/DEMO_SCRIPT.md), [recording-ready voice lines](docs/VOICE_LINES.md), [deployment runbook](docs/DEPLOYMENT.md), and [evaluation record](docs/EVALUATION.md). The included `Dockerfile` and `render.yaml` deploy the bundled-example demo on Render's free tier with the Nebius key supplied as a host secret.
 
-## Hackathon checklist
-
-The [official rules](https://nebiusglobalaihackathon.devpost.com/rules) list an October 30, 2026, 10:00 a.m. PDT deadline (11:00 a.m. in Calgary/Edmonton), require a runtime Token Factory or Nebius AI Cloud call using an NVIDIA open-source model, a public open-source repository, a working demo/test build, and a public YouTube demo under three minutes. Judging access must remain free through December 15, 2026.
-
-Before submission: record the real UI flow, publish the public YouTube video, add its URL to Devpost, keep judge access available through December 15, and re-check eligibility/current rules. Nothing in this repository submits or purchases anything automatically.
-
 ## Limitations
 
 - No arbitrary RTL interfaces, asynchronous FIFO, CDC, metastability, UVM, vendor build systems/IP, synthesis, place-and-route, timing closure, or board programming.
