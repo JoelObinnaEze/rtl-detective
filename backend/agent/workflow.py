@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from dataclasses import asdict, dataclass, field
 from hashlib import sha256
 from pathlib import Path
@@ -92,14 +93,25 @@ def _provider_record(reply: ModelReply[object]) -> dict[str, object]:
     }
 
 
-def _evidence(source: str, outcome: SimulationOutcome, pack: ContractPack, note: str = "") -> str:
+def _evidence(
+    source: str,
+    outcome: SimulationOutcome,
+    pack: ContractPack,
+    note: str = "",
+    transactions: list[object] | None = None,
+) -> str:
     failure = outcome.failures[0] if outcome.failures else None
+    prefix = []
+    if failure and transactions:
+        prefix = record_transactions(transactions[: failure.cycle + 1], outcome.parameters)
     return "\n".join(
         [
             pack.summary,
             f"Parameters: {pack.parameter_summary(outcome.parameters)}",
             f"Simulation status: {outcome.status}",
             f"Failure: {asdict(failure) if failure else 'none'}",
+            "Executed transaction prefix through the first failure: "
+            + (json.dumps(prefix, separators=(",", ":")) if prefix else "unavailable"),
             f"Additional result: {note}",
             "Untrusted DUT source follows:",
             source[:24_000],
@@ -198,7 +210,9 @@ class RepairWorkflow:
 
             emit("investigating", f"Requesting bounded investigation {number}")
             try:
-                investigation = self.provider.investigate(_evidence(source, baseline, pack, feedback))
+                investigation = self.provider.investigate(
+                    _evidence(source, baseline, pack, feedback, transactions)
+                )
             except ProviderError:
                 attempts.append(
                     AttemptReport(
@@ -260,7 +274,13 @@ class RepairWorkflow:
             emit("patching", f"Failure reproduced; requesting candidate patch {number}")
             try:
                 patch_reply = self.provider.propose_patch(
-                    _evidence(source, investigation_outcome, pack, investigation.value.hypothesis)
+                    _evidence(
+                        source,
+                        investigation_outcome,
+                        pack,
+                        investigation.value.hypothesis,
+                        targeted,
+                    )
                 )
             except ProviderError:
                 attempts.append(

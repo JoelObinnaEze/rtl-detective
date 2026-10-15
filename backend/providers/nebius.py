@@ -141,7 +141,15 @@ class NebiusProvider:
             "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
             "max_tokens": self.max_tokens,
             "temperature": 0,
-            "response_format": {"type": "json_schema", "json_schema": schema.model_json_schema()},
+            "chat_template_kwargs": {"enable_thinking": False},
+            "response_format": {
+                "type": "json_schema",
+                "json_schema": {
+                    "name": schema.__name__,
+                    "schema": schema.model_json_schema(),
+                    "strict": True,
+                },
+            },
         }
         last_error: Exception | None = None
         for attempt in range(self.retries + 1):

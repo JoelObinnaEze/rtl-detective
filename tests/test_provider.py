@@ -46,6 +46,15 @@ def test_investigation_response_is_schema_validated() -> None:
         body = json.loads(request.content)
         assert body["model"] == "nvidia/example-nemotron"
         assert body["max_tokens"] == 512
+        assert body["chat_template_kwargs"] == {"enable_thinking": False}
+        assert body["response_format"] == {
+            "type": "json_schema",
+            "json_schema": {
+                "name": "InvestigationAction",
+                "schema": InvestigationAction.model_json_schema(),
+                "strict": True,
+            },
+        }
         return httpx.Response(
             200,
             headers={"x-request-id": "request-1"},

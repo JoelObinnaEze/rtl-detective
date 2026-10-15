@@ -30,6 +30,8 @@ class FakeProvider:
     def investigate(self, evidence: str) -> ModelReply[InvestigationAction]:
         self.investigation_calls += 1
         assert "observed" in evidence
+        assert "Executed transaction prefix through the first failure" in evidence
+        assert '"wr_en":true' in evidence
         action = InvestigationAction(
             hypothesis="Both count assignments execute; the read assignment wins.",
             evidence_cycles=[6],
