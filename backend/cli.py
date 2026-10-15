@@ -2,11 +2,11 @@ from __future__ import annotations
 
 import argparse
 import os
-from pathlib import Path
 import sys
 import time
+from pathlib import Path
 
-from backend.api import CreateRunRequest, TERMINAL_STATES
+from backend.api import TERMINAL_STATES, CreateRunRequest
 from backend.providers.nebius import DEFAULT_BASE_URL, NebiusProvider, ProviderError
 from backend.service import RunManager
 

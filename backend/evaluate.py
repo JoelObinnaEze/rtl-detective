@@ -1,14 +1,17 @@
 from __future__ import annotations
 
 import argparse
-from itertools import product
 import json
-from pathlib import Path
 import time
+from itertools import product
+from pathlib import Path
 
 from backend.verification.cases import directed_transactions, random_transactions
-from backend.verification.runner import SimulationParameters, outcome_to_dict, run_local_simulation
-
+from backend.verification.runner import (
+    SimulationParameters,
+    outcome_to_dict,
+    run_local_simulation,
+)
 
 DATA_WIDTHS = (1, 8, 16)
 DEPTHS = (1, 2, 3, 4, 7, 8)

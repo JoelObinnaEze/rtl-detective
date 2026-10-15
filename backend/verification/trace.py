@@ -2,7 +2,6 @@ from pathlib import Path
 
 from vcdvcd import VCDVCD
 
-
 CANONICAL_SIGNALS = (
     "clk",
     "rst",

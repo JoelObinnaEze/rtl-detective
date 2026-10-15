@@ -2,9 +2,12 @@ from pathlib import Path
 
 from backend.verification.arbiter import ArbiterModel, ArbiterTransaction
 from backend.verification.packs import get_contract_pack
-from backend.verification.runner import SimulationParameters, render_testbench, run_local_simulation
+from backend.verification.runner import (
+    SimulationParameters,
+    render_testbench,
+    run_local_simulation,
+)
 from backend.verification.security import validate_source
-
 
 ROOT = Path(__file__).parents[1]
 

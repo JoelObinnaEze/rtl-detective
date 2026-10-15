@@ -2,8 +2,11 @@ from pathlib import Path
 
 from backend.verification.cases import directed_transactions, random_transactions
 from backend.verification.contract import Transaction
-from backend.verification.runner import SimulationParameters, render_testbench, run_local_simulation
-
+from backend.verification.runner import (
+    SimulationParameters,
+    render_testbench,
+    run_local_simulation,
+)
 
 ROOT = Path(__file__).parents[1]
 

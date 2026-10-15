@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from backend.providers.nebius import TransactionAction
+
     from .runner import SimulationParameters
 
 

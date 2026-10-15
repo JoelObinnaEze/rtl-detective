@@ -1,9 +1,14 @@
 from dataclasses import asdict
 from pathlib import Path
 
-from backend.agent.proof import IntegrityProof, RunLimits, derive_claim, summarize_outcome
-from backend.verification.fifo import FifoFailure
+from backend.agent.proof import (
+    IntegrityProof,
+    RunLimits,
+    derive_claim,
+    summarize_outcome,
+)
 from backend.verification.contract import Transaction
+from backend.verification.fifo import FifoFailure
 from backend.verification.runner import SimulationOutcome, SimulationParameters
 
 

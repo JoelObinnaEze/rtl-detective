@@ -1,16 +1,15 @@
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
-from hashlib import sha256
 import os
-from pathlib import Path
 import shlex
 import shutil
 import subprocess
+from dataclasses import asdict, dataclass
+from hashlib import sha256
+from pathlib import Path
 from uuid import uuid4
 
 from .packs import get_contract_pack
-
 
 VERILATOR_IMAGE = "verilator/verilator:v5.050"
 

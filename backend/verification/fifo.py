@@ -8,6 +8,7 @@ from .contract import FifoModel, Snapshot, Transaction, count_width
 
 if TYPE_CHECKING:
     from backend.providers.nebius import TransactionAction
+
     from .runner import SimulationParameters
 
 

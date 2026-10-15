@@ -6,7 +6,6 @@ import pytest
 from backend.verification.packs import get_contract_pack
 from backend.verification.runner import SimulationParameters, run_local_simulation
 
-
 ROOT = Path(__file__).parents[1]
 CASES = json.loads((ROOT / "benchmark/manifests/cases.json").read_text(encoding="utf-8"))
 
