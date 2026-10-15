@@ -1,11 +1,12 @@
-# RTL Detective — Devpost Submission Draft
+# RTL Detective — Devpost Submission Narrative
 
 ## Links
 
 - Live demo: https://rtl-detective.onrender.com
 - Public source: https://github.com/JoelObinnaEze/rtl-detective
 - Passing CI: https://github.com/JoelObinnaEze/rtl-detective/actions/workflows/ci.yml
-- Deployed commit: `486061e`
+- Demo video: https://youtu.be/UmpgmuvtHXg
+- Evaluation record: https://github.com/JoelObinnaEze/rtl-detective/blob/main/docs/EVALUATION.md
 
 ## Track
 
@@ -76,13 +77,3 @@ The bundled benchmark also contains 10 hidden-label cases: 6 defective and 4 cor
 Use this paragraph if Devpost treats the project as pre-existing:
 
 > RTL Detective began as an earlier verification prototype. During the hackathon period it gained the Nebius Token Factory + NVIDIA Nemotron runtime integration, bounded investigation/repair orchestration, the round-robin arbiter contract pack, isolated execution, proof schema and artifact bundle, locked-asset integrity checks, benchmark/evaluation workflow, and the judge-facing web experience shown in this submission.
-
-## Final submission checklist
-
-- [x] Make the repository public with its Apache-2.0 license and this setup documentation.
-- [x] Deploy commit `486061e` and confirm `/api/health` reports the intended model.
-- [x] Establish the public demo URL; add it to Devpost and keep free judge access available through December 15, 2026.
-- [ ] Record the hosted `case-001` flow using `docs/DEMO_SCRIPT.md`.
-- [ ] Upload a public YouTube video under three minutes and add its URL.
-- [ ] Select Coding and Agentic Engineering, include the significant-update disclosure if applicable, and paste the feedback above.
-- [ ] Re-check the official rules and submit before October 30, 2026 at 10:00 a.m. PDT / 11:00 a.m. America/Edmonton.

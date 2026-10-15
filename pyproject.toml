@@ -16,6 +16,10 @@ dependencies = [
   "vcdvcd==2.6.0",
 ]
 
+[project.urls]
+Repository = "https://github.com/JoelObinnaEze/rtl-detective"
+Demo = "https://rtl-detective.onrender.com"
+
 [project.optional-dependencies]
 test = ["httpx2==2.13.1", "pytest==9.0.3"]
 
@@ -24,6 +28,10 @@ rtl-detective = "backend.cli:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["backend"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"benchmark" = "benchmark"
+"frontend" = "frontend"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

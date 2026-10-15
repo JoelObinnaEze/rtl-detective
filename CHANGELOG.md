@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [0.1.0] - 2026-10-15
 
 ### Added
 
@@ -32,4 +32,5 @@
 - Use Starlette's supported `httpx2` test transport, removing the deprecated fallback warning from the judge test suite.
 - Close every SQLite connection deterministically and treat all test warnings as failures.
 - Restore the original locked module header before generating a model candidate's canonical diff, preventing runtime parameter specialization without weakening the direct patch guard.
+- Include the benchmark corpus and web interface in built wheels so the installed CLI works outside a source checkout.
 

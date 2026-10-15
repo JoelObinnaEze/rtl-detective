@@ -13,7 +13,7 @@ The container includes Verilator 5.050, binds FastAPI to Render's `PORT`, and al
 
 ## Manual Linux VM fallback
 
-## Host requirements
+### Host requirements
 
 - Python 3.11+
 - Docker Engine with access to `verilator/verilator:v5.050`
@@ -23,7 +23,7 @@ The container includes Verilator 5.050, binds FastAPI to Render's `PORT`, and al
 ## Install
 
 ```bash
-git clone <PUBLIC_REPOSITORY_URL> rtl-detective
+git clone https://github.com/JoelObinnaEze/rtl-detective.git
 cd rtl-detective
 python3 -m venv .venv
 .venv/bin/python -m pip install --only-binary=:all: -r requirements.lock
@@ -57,7 +57,7 @@ For Nginx, define `limit_req_zone $binary_remote_addr zone=rtl_runs:10m rate=2r/
 
 ## Acceptance checks
 
-1. `GET https://<PUBLIC_HOST>/api/health` returns `status: ok`, `repairReady: true`, `configured: true`, `maxPendingRuns: 4`, and `nvidia/nemotron-3-super-120b-a12b`. It must never return the API key.
+1. `GET https://<PUBLIC_HOST>/api/health` returns `status: ok`, `repairReady: true`, `configured: true`, the configured queue bound (`1` on Render), and `nvidia/nemotron-3-super-120b-a12b`. It must never return the API key.
 2. Run `case-005`; it should pass the baseline without an AI call.
 3. Run `case-001` once; it should show the Nebius/NVIDIA provider proof and either a verified candidate or honest unresolved evidence.
 4. Download `report.md`, `report.json`, and `artifact-bundle.zip` from the completed run.

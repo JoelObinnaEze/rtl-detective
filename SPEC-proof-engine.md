@@ -2,7 +2,7 @@
 
 Module id: `proof-engine`
 
-Status: implemented and locally verified on October 14, 2026; live Nebius evidence remains gated on account access
+Status: implemented and verified locally and through a live Nebius/NVIDIA repair on October 15, 2026
 
 Parent: [CAPABILITY_MAP.md](CAPABILITY_MAP.md)
 
@@ -146,7 +146,7 @@ class OutcomeSummary:
 - `report.json`, `report.md`, and `artifact-bundle.zip` agree on verdict, hashes, and artifact names.
 - Existing API and CLI commands continue to work without requiring new request fields.
 
-Tests for every new branch are written red-first. The full 70-test baseline must remain green, with new proof tests added to it.
+Tests for every new branch are written red-first. The complete repository test suite must remain green as proof coverage grows.
 
 ## Boundaries
 
