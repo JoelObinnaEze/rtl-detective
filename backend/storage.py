@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
 import json
-from pathlib import Path
 import sqlite3
+from datetime import UTC, datetime
+from pathlib import Path
 from uuid import uuid4
 
 
@@ -12,7 +12,7 @@ class IdempotencyConflict(ValueError):
 
 
 def _now() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 class RunStore:
@@ -159,6 +159,18 @@ class RunStore:
         with self._connect() as connection:
             rows = connection.execute(
                 "SELECT id FROM runs ORDER BY created_at DESC LIMIT ?", (limit,)
+            ).fetchall()
+        return [self.get_run(str(row["id"])) for row in rows]
+
+    def list_incomplete_runs(self, terminal_states: set[str]) -> list[dict[str, object]]:
+        if not terminal_states:
+            raise ValueError("terminal_states cannot be empty")
+        states = sorted(terminal_states)
+        placeholders = ", ".join("?" for _ in states)
+        with self._connect() as connection:
+            rows = connection.execute(
+                f"SELECT id FROM runs WHERE status NOT IN ({placeholders}) ORDER BY created_at",
+                states,
             ).fetchall()
         return [self.get_run(str(row["id"])) for row in rows]
 

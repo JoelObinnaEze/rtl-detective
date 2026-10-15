@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import shutil
 import zipfile
@@ -9,6 +10,7 @@ from dataclasses import asdict
 from hashlib import sha256
 from html import escape
 from pathlib import Path
+from threading import BoundedSemaphore, Lock
 
 from backend.agent.proof import RunLimits
 from backend.agent.workflow import RepairWorkflow, RunEvent, WorkflowReport
@@ -23,6 +25,8 @@ from backend.verification.runner import (
 )
 from backend.verification.security import hash_locked_assets, validate_source
 from backend.verification.trace import extract_signal_changes
+
+logger = logging.getLogger(__name__)
 
 
 class _UnavailableProvider:
@@ -41,8 +45,26 @@ def _markdown_code(value: object) -> str:
     return f"`{escape(text).replace('`', '&#96;')}`"
 
 
+def _bounded_env_int(name: str, default: int, minimum: int, maximum: int) -> int:
+    raw = os.getenv(name, str(default))
+    try:
+        value = int(raw)
+    except ValueError as error:
+        raise ValueError(f"{name} must be an integer between {minimum} and {maximum}") from error
+    if not minimum <= value <= maximum:
+        raise ValueError(f"{name} must be an integer between {minimum} and {maximum}")
+    return value
+
+
 class RunManager:
     def __init__(self, data_root: Path) -> None:
+        self.limits = RunLimits(
+            max_patch_attempts=_bounded_env_int("MAX_PATCH_ATTEMPTS", 1, 1, 3),
+            simulation_timeout_seconds=_bounded_env_int("SIMULATION_TIMEOUT_SECONDS", 30, 1, 300),
+        )
+        self.max_pending_runs = _bounded_env_int("MAX_PENDING_RUNS", 4, 1, 32)
+        self._run_slots = BoundedSemaphore(self.max_pending_runs)
+        self._submission_lock = Lock()
         self.data_root = data_root.resolve()
         self.runs_root = self.data_root / "runs"
         self.runs_root.mkdir(parents=True, exist_ok=True)
@@ -52,6 +74,7 @@ class RunManager:
         manifest_path = project_root / "benchmark/manifests/cases.json"
         self.benchmark_root = project_root / "benchmark"
         self._examples = json.loads(manifest_path.read_text(encoding="utf-8"))
+        self._recover_incomplete_runs()
 
     def examples(self) -> list[dict[str, object]]:
         examples = []
@@ -107,22 +130,39 @@ class RunManager:
         request_hash = sha256(
             json.dumps(request.model_dump(by_alias=True), sort_keys=True, separators=(",", ":")).encode()
         ).hexdigest()
-        run_id = self.store.create_run(
-            stored_parameters,
-            provider_mode="live",
-            source_kind=source_kind,
-            idempotency_key=idempotency_key,
-            request_hash=request_hash if idempotency_key else None,
-        )
-        run_root = self.runs_root / run_id
-        if run_root.exists():
-            return run_id
-        run_root.mkdir()
-        source_path = run_root / "original.sv"
-        source_path.write_text(source, encoding="utf-8")
-        self.store.append_event(run_id, "queued", "Run accepted by the single-worker queue")
-        self.executor.submit(self._execute, run_id, source_path, source_kind, parameters)
-        return run_id
+        with self._submission_lock:
+            if not self._run_slots.acquire(blocking=False):
+                raise RuntimeError("run queue is full; retry after an active run completes")
+            slot_owned = True
+            try:
+                run_id = self.store.create_run(
+                    stored_parameters,
+                    provider_mode="live",
+                    source_kind=source_kind,
+                    idempotency_key=idempotency_key,
+                    request_hash=request_hash if idempotency_key else None,
+                )
+                run_root = self.runs_root / run_id
+                if run_root.exists():
+                    return run_id
+                run_root.mkdir()
+                source_path = run_root / "original.sv"
+                source_path.write_text(source, encoding="utf-8")
+                self.store.append_event(run_id, "queued", "Run accepted by the single-worker queue")
+                self.executor.submit(self._execute_queued, run_id, source_path, source_kind, parameters)
+                slot_owned = False
+                return run_id
+            finally:
+                if slot_owned:
+                    self._run_slots.release()
+
+    def _execute_queued(
+        self, run_id: str, source: Path, source_kind: str, parameters: SimulationParameters
+    ) -> None:
+        try:
+            self._execute(run_id, source, source_kind, parameters)
+        finally:
+            self._run_slots.release()
 
     def _provider(self):
         if os.getenv("NEBIUS_API_KEY"):
@@ -133,7 +173,6 @@ class RunManager:
         self, run_id: str, source: Path, source_kind: str, parameters: SimulationParameters
     ) -> None:
         run_root = self.runs_root / run_id
-        limits = RunLimits(max_patch_attempts=1, simulation_timeout_seconds=30)
 
         def on_event(event: RunEvent) -> None:
             self.store.append_event(run_id, event.state, event.message)
@@ -142,14 +181,10 @@ class RunManager:
 
         try:
             simulation_runner = run_container_simulation if source_kind == "upload" or docker_available() else run_local_simulation
-            limits = RunLimits(
-                max_patch_attempts=int(os.getenv("MAX_PATCH_ATTEMPTS", "1")),
-                simulation_timeout_seconds=int(os.getenv("SIMULATION_TIMEOUT_SECONDS", "30")),
-            )
             workflow = RepairWorkflow(
                 provider=self._provider(),
-                max_patch_attempts=limits.max_patch_attempts,
-                simulation_timeout_seconds=limits.simulation_timeout_seconds,
+                max_patch_attempts=self.limits.max_patch_attempts,
+                simulation_timeout_seconds=self.limits.simulation_timeout_seconds,
                 on_event=on_event,
                 is_cancelled=lambda: self.store.is_cancelled(run_id),
                 simulation_runner=simulation_runner,
@@ -161,10 +196,45 @@ class RunManager:
             )
             self._write_artifacts(run_root, report)
             self.store.update_run(run_id, report.status, report.verdict)
-        except Exception:
-            self._write_failure_artifacts(run_root, source, parameters, limits)
+        except Exception:  # Worker boundary must persist a terminal record.
+            logger.exception("run %s failed inside the orchestrator", run_id)
+            try:
+                self._write_failure_artifacts(run_root, source, parameters, self.limits)
+            except Exception:  # Status must still become terminal.
+                logger.exception("run %s fallback artifact write failed", run_id)
             self.store.append_event(run_id, "infrastructure_error", "Run failed inside the orchestrator")
             self.store.update_run(run_id, "infrastructure_error", "infrastructure_error")
+
+    def _recover_incomplete_runs(self) -> None:
+        for record in self.store.list_incomplete_runs(TERMINAL_STATES):
+            run_id = str(record["id"])
+            run_root = self.runs_root / run_id
+            run_root.mkdir(parents=True, exist_ok=True)
+            values = record["parameters"]
+            assert isinstance(values, dict)
+            parameters = SimulationParameters(
+                contract_id=str(values.get("contract_id", "fifo")),
+                data_width=int(values.get("data_width", 8)),
+                depth=int(values.get("depth", 4)),
+                requesters=int(values.get("requesters", 4)),
+            )
+            try:
+                self._write_failure_artifacts(
+                    run_root,
+                    run_root / "original.sv",
+                    parameters,
+                    self.limits,
+                    error_code="RUN_INTERRUPTED",
+                    error_message="Service restarted before the run reached a terminal state",
+                )
+            except Exception:  # Recovery must still unblock polling clients.
+                logger.exception("run %s restart recovery artifact write failed", run_id)
+            self.store.append_event(
+                run_id,
+                "infrastructure_error",
+                "Run interrupted by a service restart",
+            )
+            self.store.update_run(run_id, "infrastructure_error", "run_interrupted")
 
     @staticmethod
     def _write_artifacts(run_root: Path, report: WorkflowReport) -> None:
@@ -194,6 +264,8 @@ class RunManager:
         source: Path,
         parameters: SimulationParameters,
         limits: RunLimits,
+        error_code: str = "ORCHESTRATOR_FAILURE",
+        error_message: str = "Run failed inside the orchestrator",
     ) -> None:
         source_hash = sha256(source.read_bytes()).hexdigest() if source.is_file() else None
         locked_after = hash_locked_assets(Path(__file__).parents[1])
@@ -221,10 +293,10 @@ class RunManager:
                 "locked_assets_after": locked_after,
                 "locked_assets_unchanged": False,
             },
-            "limitations": ["The orchestrator failed before a complete verification report was available."],
+            "limitations": [f"{error_message}. A complete verification report is unavailable."],
             "error": {
-                "code": "ORCHESTRATOR_FAILURE",
-                "message": "Run failed inside the orchestrator",
+                "code": error_code,
+                "message": error_message,
             },
         }
         RunManager._write_report_bundle(run_root, payload)

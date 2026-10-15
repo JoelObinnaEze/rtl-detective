@@ -11,6 +11,7 @@ from backend.agent.workflow import RunEvent
 from backend.api import CreateRunRequest
 from backend.providers.nebius import DEFAULT_MODEL_ID, NebiusProvider
 from backend.service import RunManager
+from backend.storage import RunStore
 from backend.verification.runner import SimulationParameters
 
 ROOT = Path(__file__).parents[1]
@@ -43,6 +44,92 @@ def test_examples_expose_opaque_ids_without_hidden_labels(tmp_path: Path) -> Non
     assert {item["contractId"] for item in examples} == {"fifo", "arbiter"}
     assert any(item.get("requesters") == 3 for item in examples if item["contractId"] == "arbiter")
     manager.shutdown()
+
+
+@pytest.mark.parametrize(
+    ("name", "value"),
+    [
+        ("MAX_PATCH_ATTEMPTS", "0"),
+        ("SIMULATION_TIMEOUT_SECONDS", "not-a-number"),
+        ("MAX_PENDING_RUNS", "33"),
+    ],
+)
+def test_invalid_worker_limits_fail_at_startup(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, name: str, value: str
+) -> None:
+    monkeypatch.setenv(name, value)
+
+    with pytest.raises(ValueError, match=name):
+        RunManager(tmp_path)
+
+
+def test_run_queue_is_bounded_and_recovers_capacity(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    started = Event()
+    release = Event()
+
+    class BlockingWorkflow:
+        def __init__(self, **_kwargs: object) -> None:
+            pass
+
+        def run(self, *_args: object) -> SimpleNamespace:
+            started.set()
+            assert release.wait(5)
+            return SimpleNamespace(status="completed", verdict="passed")
+
+    monkeypatch.setenv("MAX_PENDING_RUNS", "1")
+    monkeypatch.setattr("backend.service.RepairWorkflow", BlockingWorkflow)
+    monkeypatch.setattr(RunManager, "_write_artifacts", staticmethod(lambda *_args: None))
+    manager = RunManager(tmp_path)
+    try:
+        first = manager.submit(CreateRunRequest(exampleId="case-005"), None)
+        assert started.wait(5)
+
+        with pytest.raises(RuntimeError, match="queue is full"):
+            manager.submit(CreateRunRequest(exampleId="case-006"), None)
+
+        release.set()
+        deadline = time.monotonic() + 5
+        while manager.get_run(first)["status"] != "completed" and time.monotonic() < deadline:
+            time.sleep(0.01)
+        assert manager.get_run(first)["status"] == "completed"
+        third = manager.submit(CreateRunRequest(exampleId="case-006"), None)
+        deadline = time.monotonic() + 5
+        while manager.get_run(third)["status"] != "completed" and time.monotonic() < deadline:
+            time.sleep(0.01)
+        assert manager.get_run(third)["status"] == "completed"
+    finally:
+        release.set()
+        manager.shutdown()
+
+
+def test_restart_marks_incomplete_run_terminal_and_writes_proof(tmp_path: Path) -> None:
+    store = RunStore(tmp_path / "runs.db")
+    run_id = store.create_run(
+        {"contract_id": "fifo", "data_width": 8, "depth": 3},
+        provider_mode="live",
+        source_kind="example",
+    )
+    run_root = tmp_path / "runs" / run_id
+    run_root.mkdir(parents=True)
+    (run_root / "original.sv").write_text(
+        (ROOT / "benchmark/designs/correct/reference_fifo.sv").read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+
+    manager = RunManager(tmp_path)
+    try:
+        record = manager.get_run(run_id)
+        report = json.loads((run_root / "report.json").read_text(encoding="utf-8"))
+
+        assert record["status"] == "infrastructure_error"
+        assert record["verdict"] == "run_interrupted"
+        assert record["events"][-1]["state"] == "infrastructure_error"
+        assert report["error"]["code"] == "RUN_INTERRUPTED"
+        assert (run_root / "artifact-bundle.zip").is_file()
+    finally:
+        manager.shutdown()
 
 
 def test_uploaded_rtl_fails_closed_when_container_worker_is_unavailable(
@@ -205,7 +292,7 @@ def test_json_markdown_and_zip_share_the_same_proof(tmp_path: Path) -> None:
 
 
 def test_unexpected_orchestrator_failure_writes_sanitized_proof_before_terminal_state(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
     class FailingWorkflow:
         def __init__(self, **_kwargs: object) -> None:
@@ -247,5 +334,7 @@ def test_unexpected_orchestrator_failure_writes_sanitized_proof_before_terminal_
     assert str(tmp_path) not in serialized
     assert (run_root / "report.md").is_file()
     assert (run_root / "artifact-bundle.zip").is_file()
+    assert f"run {run_id} failed inside the orchestrator" in caplog.text
+    assert "secret-token" in caplog.text
     manager.shutdown()
 
