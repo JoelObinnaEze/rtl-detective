@@ -1,16 +1,13 @@
 # RTL Detective
 
-RTL Detective is an evidence-first agent for small, single-clock SystemVerilog FIFOs. It compiles the DUT with Verilator, compares every sampled cycle with a deterministic queue oracle, asks an NVIDIA/Nemotron model through Nebius Token Factory for a bounded investigation and candidate diff, then independently reruns the reproducer and locked tests.
+RTL Detective is an evidence-first agent for canonical, single-clock SystemVerilog blocks. It compiles the DUT with Verilator, compares every sampled cycle with the selected contract pack's executable oracle, asks an NVIDIA/Nemotron model through Nebius Token Factory for a bounded investigation and candidate diff, then independently reruns the reproducer and locked tests.
 
 It reports only what the saved evidence supports: **failure reproduced**, **candidate passed listed regression tests**, **no failure found in tested cases**, or **repair not verified**. Simulation is not formal proof.
 
-## Supported contract
+## Supported contract packs
 
-- Module `fifo`; parameters `DATA_WIDTH` and `DEPTH`.
-- Inputs `clk`, `rst`, `wr_en`, `rd_en`, `din`; outputs `dout`, `full`, `empty`, `count`.
-- One clock, synchronous active-high reset, registered `dout`, no fall-through.
-- Acceptance uses pre-edge state. Full simultaneous read/write accepts only the read; empty simultaneous accepts only the write; partial simultaneous accepts both.
-- `count` width is `max(1, ceil(log2(DEPTH + 1)))`; pointers must explicitly wrap for non-power-of-two depths.
+- **Synchronous FIFO:** module `fifo`; parameters `DATA_WIDTH` and `DEPTH`; inputs `clk`, `rst`, `wr_en`, `rd_en`, `din`; outputs `dout`, `full`, `empty`, `count`. It uses synchronous active-high reset, registered `dout`, no fall-through, pre-edge acceptance, and explicit pointer wrapping for non-power-of-two depths.
+- **Round-robin arbiter:** module `round_robin_arbiter`; parameter `REQUESTERS` from 2 through 32; inputs `clk`, `rst`, `request`; output `grant`. The registered grant is one-hot-or-zero, selection starts at the saved priority and wraps by requester index, a grant advances priority, and an idle cycle preserves it.
 
 Other policies and interfaces are rejected rather than silently adapted.
 
@@ -22,12 +19,13 @@ Prerequisites: Python 3.11+, and either Docker Desktop/Engine or Verilator 5.050
 python -m venv .venv
 .\.venv\Scripts\python -m pip install --only-binary=:all: -r requirements.lock
 .\.venv\Scripts\python -m backend.cli verify --example case-005
+.\.venv\Scripts\python -m backend.cli verify --example arbiter-case-003 --contract arbiter --requesters 3
 .\.venv\Scripts\python -m backend.cli serve
 ```
 
 On Linux/macOS, activate `.venv/bin/python` instead. Open [http://127.0.0.1:8000](http://127.0.0.1:8000).
 
-`case-005` is a correct bundled implementation and completes without an AI call. Defective cases reproduce deterministically; repair requires the Nebius settings below.
+`case-005` and `arbiter-case-003` are correct bundled implementations and complete without an AI call. Defective cases reproduce deterministically; repair requires the Nebius settings below.
 
 ## Nebius Token Factory
 
@@ -53,13 +51,13 @@ Official references: [model listing](https://docs.tokenfactory.nebius.com/api-re
 
 The published offline matrix is `DATA_WIDTH={1,8,16}` × `DEPTH={1,2,3,4,7,8}`, with three recorded seeds per configuration. Raw results are written to `artifacts/evaluation/matrix-results.json`; do not report rates until that file exists and all denominators are stated.
 
-The benchmark contains opaque IDs for four defects (simultaneous count update, pointer wrap, full detection, reset handling) and two independently structured correct implementations. Expected labels remain outside model prompts.
+The bundled benchmark contains ten opaque cases: four FIFO defects, two correct FIFOs, two arbiter defects, and two independently structured correct arbiters. Expected labels remain outside model prompts. The published 18-configuration offline matrix remains FIFO-specific until an arbiter matrix is versioned and measured.
 
 ## Architecture
 
-1. FastAPI/CLI validates the source and canonical interface, preserves the original, and records a SHA-256 hash.
-2. A human-authored testbench drives inputs on the falling edge and samples after rising-edge updates settle.
-3. Verilator 5.050 emits observations and a VCD; a Python queue oracle checks flags, count, ordering, acceptance, reset, and output hold.
+1. FastAPI/CLI selects a contract pack, validates its canonical interface, preserves the original, and records a SHA-256 hash.
+2. The selected pack supplies a human-authored testbench, directed and seeded-random transactions, an executable oracle, and a locked regression suite.
+3. Verilator 5.050 emits observations and a VCD; the selected oracle records the first cycle-level mismatch.
 4. Only bounded evidence and untrusted DUT text are sent to the configured Nemotron model.
 5. Unified diffs may modify only a candidate `dut.sv`. Check-disabling edits, foreign code, path traversal, symlinks, and oversized inputs are rejected.
 6. Every candidate reruns its proposed reproducer and the locked suite. Oracle, test template, and restriction hashes are compared before and after.
@@ -69,7 +67,7 @@ Uploaded RTL runs in `verilator/verilator:v5.050` with no network, a read-only r
 
 ## API
 
-- `POST /api/runs` — create a run; supports `Idempotency-Key`.
+- `POST /api/runs` — create a run; accepts `contractId` (`fifo` by default or `arbiter`) plus the relevant parameters and supports `Idempotency-Key`.
 - `GET /api/runs/{id}` — current state and ordered events.
 - `GET /api/runs/{id}/events` — server-sent event stream.
 - `POST /api/runs/{id}/cancel` — request cancellation.
@@ -83,7 +81,7 @@ Interactive states are `queued → validating → baseline → investigating →
 Verified locally on October 14, 2026:
 
 - Python 3.13.7 and Verilator 5.050.
-- Contract/oracle tests, six-case real-Verilator benchmark, patch restrictions, provider schema validation, persistence/API/UI contracts, and an end-to-end fake-provider repair with independent regression.
+- FIFO and arbiter contract/oracle tests, ten-case real-Verilator benchmark, patch restrictions, provider schema validation, persistence/API/UI contracts, and an end-to-end fake-provider repair with independent regression.
 - The published offline matrix passed 18/18 configurations across three recorded seeds per configuration (54 seed/configuration combinations). Raw local output is in `artifacts/evaluation/matrix-results.json`.
 - The pinned `verilator/verilator:v5.050` worker passed an actual Docker simulation with its network, filesystem, privilege, and resource restrictions enabled.
 - No `NEBIUS_API_KEY` was available, so a live Token Factory request and exact account model ID remain unverified.
@@ -96,7 +94,7 @@ Before submission: complete and record a real Nebius call, inspect and publish t
 
 ## Limitations
 
-- No asynchronous FIFO, CDC, metastability, UVM, arbitrary build system, vendor IP, synthesis, place-and-route, timing closure, or board programming.
+- No arbitrary RTL interfaces, asynchronous FIFO, CDC, metastability, UVM, vendor build systems/IP, synthesis, place-and-route, timing closure, or board programming.
 - Cancellation is checked between bounded stages. Container timeouts kill the named worker; cancellation during an active local trusted simulation waits for that subprocess to finish.
 - The first release has one active simulation worker and local SQLite storage; it is not a multi-tenant service.
 

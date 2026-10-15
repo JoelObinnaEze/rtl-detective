@@ -5,10 +5,12 @@
 ### Added
 
 - Canonical FIFO oracle, deterministic/random verification, Verilator VCD pipeline, six-case benchmark, bounded Nebius repair loop, isolated worker policy, CLI/API/web UI, persistent events, and downloadable reports.
+- Contract-pack architecture and a canonical round-robin arbiter pack with its own oracle, directed/random transactions, four-case benchmark, CLI/API selection, trace evidence, and dark-theme web controls.
 
 ### Changed
 
 - Refined the dark verification workspace with clearer hierarchy, an explanatory signal pipeline, responsive result panels, and precise reduced-motion-aware interaction feedback.
+- Generalized the verification, repair, report, and artifact workflow while keeping the FIFO API and CLI defaults backward compatible.
 
 ### Fixed
 

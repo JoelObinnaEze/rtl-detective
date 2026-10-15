@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "rtl-detective"
 version = "0.1.0"
-description = "Evidence-first verification and bounded repair for synchronous SystemVerilog FIFOs"
+description = "Evidence-first verification and bounded repair for canonical SystemVerilog blocks"
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "Apache-2.0" }
