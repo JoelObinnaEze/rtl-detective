@@ -185,8 +185,8 @@ class RepairWorkflow:
         feedback = ""
         try:
             self.provider.verify_model()
-        except ProviderError as error:
-            emit("infrastructure_error", f"Provider error: {error}")
+        except ProviderError:
+            emit("infrastructure_error", "Provider request failed")
             return self._finish(
                 "infrastructure_error", "provider_error", source_hash, parameters, baseline, attempts, events, locked_before, None
             )
@@ -199,7 +199,7 @@ class RepairWorkflow:
             emit("investigating", f"Requesting bounded investigation {number}")
             try:
                 investigation = self.provider.investigate(_evidence(source, baseline, pack, feedback))
-            except ProviderError as error:
+            except ProviderError:
                 attempts.append(
                     AttemptReport(
                         attempt=number,
@@ -209,10 +209,10 @@ class RepairWorkflow:
                         investigation_status="provider_error",
                         reproducer_status=None,
                         regression_status=None,
-                        error=str(error),
+                        error="Provider request failed.",
                     )
                 )
-                emit("infrastructure_error", f"Provider error: {error}")
+                emit("infrastructure_error", "Provider request failed")
                 return self._finish(
                     "infrastructure_error", "provider_error", source_hash, parameters, baseline, attempts, events, locked_before, None
                 )
@@ -262,7 +262,7 @@ class RepairWorkflow:
                 patch_reply = self.provider.propose_patch(
                     _evidence(source, investigation_outcome, pack, investigation.value.hypothesis)
                 )
-            except ProviderError as error:
+            except ProviderError:
                 attempts.append(
                     AttemptReport(
                         attempt=number,
@@ -274,10 +274,10 @@ class RepairWorkflow:
                         regression_status=None,
                         provider_requests=records,
                         investigation=investigation_proof,
-                        error=str(error),
+                        error="Provider request failed.",
                     )
                 )
-                emit("infrastructure_error", f"Provider error: {error}")
+                emit("infrastructure_error", "Provider request failed")
                 return self._finish(
                     "infrastructure_error", "provider_error", source_hash, parameters, baseline, attempts, events, locked_before, None
                 )

@@ -141,7 +141,11 @@ def test_json_markdown_and_zip_share_the_same_proof(tmp_path: Path) -> None:
         "attempts": [
             {
                 "investigation": {
-                    "provider_request": {"provider": "nebius", "model_id": "nvidia/model", "request_id": "req-1"}
+                    "provider_request": {
+                        "provider": "nebius\n- injected",
+                        "model_id": "nvidia/model<script>alert(1)</script>",
+                        "request_id": "req-1<img src=x>",
+                    }
                 },
                 "candidate": {"source_sha256": "candidate-hash"},
                 "verification": {
@@ -170,7 +174,10 @@ def test_json_markdown_and_zip_share_the_same_proof(tmp_path: Path) -> None:
     assert data["baseline"]["stdout"] is None
     assert data["baseline"]["stdout_artifact"] == "baseline.stdout.txt"
     assert "simulation output" not in serialized
-    assert "nebius / nvidia/model" in markdown
+    assert "`nebius - injected` / `nvidia/model&lt;script&gt;alert(1)&lt;/script&gt;`" in markdown
+    assert "\n- injected" not in markdown
+    assert "<script>" not in markdown
+    assert "<img" not in markdown
     assert "Reproducer: `passed`" in markdown
     assert "Locked regression: `passed`" in markdown
     assert str(tmp_path) not in serialized + markdown

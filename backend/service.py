@@ -3,6 +3,7 @@ from __future__ import annotations
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict
 from hashlib import sha256
+from html import escape
 import json
 import os
 from pathlib import Path
@@ -33,6 +34,11 @@ class _UnavailableProvider:
 
     def propose_patch(self, source_and_evidence: str):
         self.verify_model()
+
+
+def _markdown_code(value: object) -> str:
+    text = " ".join(str(value if value is not None else "unavailable").splitlines())
+    return f"`{escape(text).replace('`', '&#96;')}`"
 
 
 class RunManager:
@@ -277,8 +283,11 @@ class RunManager:
             if isinstance(investigation, dict):
                 request = investigation.get("provider_request")
                 if isinstance(request, dict):
-                    lines.append(f"- Provider: {request.get('provider')} / {request.get('model_id')}")
-                    lines.append(f"- Request: `{request.get('request_id') or 'unavailable'}`")
+                    lines.append(
+                        f"- Provider: {_markdown_code(request.get('provider'))} / "
+                        f"{_markdown_code(request.get('model_id'))}"
+                    )
+                    lines.append(f"- Request: {_markdown_code(request.get('request_id'))}")
             if isinstance(candidate, dict):
                 lines.append(f"- Candidate SHA-256: `{candidate.get('source_sha256') or 'rejected'}`")
             if isinstance(verification, dict):

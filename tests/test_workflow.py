@@ -79,7 +79,7 @@ class RejectingPatchProvider(FakeProvider):
 
 class FailingPatchProvider(FakeProvider):
     def propose_patch(self, source_and_evidence: str) -> ModelReply[PatchAction]:
-        raise ProviderError("provider unavailable")
+        raise ProviderError("private provider payload")
 
 
 def mismatch(parameters: SimulationParameters) -> SimulationOutcome:
@@ -224,7 +224,8 @@ def test_provider_failure_preserves_completed_investigation(tmp_path: Path) -> N
     assert attempt["investigation"]["outcome"]["status"] == "functional_mismatch"
     assert attempt["candidate"] is None
     assert attempt["verification"] is None
-    assert attempt["error"] == "provider unavailable"
+    assert attempt["error"] == "Provider request failed."
+    assert "private provider payload" not in str(report.to_dict())
     assert report.status == "infrastructure_error"
     assert report.claim == "Failure reproduced; repair not verified."
 
