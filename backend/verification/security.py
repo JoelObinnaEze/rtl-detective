@@ -6,28 +6,19 @@ import re
 import shutil
 import subprocess
 
+from .packs import get_contract_pack
+
 
 MAX_SOURCE_BYTES = 256 * 1024
 MAX_DIFF_BYTES = 128 * 1024
-CANONICAL_IDENTIFIERS = (
-    "fifo",
-    "DATA_WIDTH",
-    "DEPTH",
-    "clk",
-    "rst",
-    "wr_en",
-    "rd_en",
-    "din",
-    "dout",
-    "full",
-    "empty",
-    "count",
-)
 FORBIDDEN_SOURCE = re.compile(r'\b(?:import|export)\s+["\']DPI|\$(?:system|fopen|fwrite|readmemh|readmemb)\b', re.I)
 FORBIDDEN_PATCH = re.compile(r'verilator\s+lint_off|translate_off|\$(?:finish|fatal)\b|`ifdef\s+VERILATOR', re.I)
 LOCKED_ASSETS = (
     "backend/verification/contract.py",
     "backend/verification/cases.py",
+    "backend/verification/fifo.py",
+    "backend/verification/arbiter.py",
+    "backend/verification/packs.py",
     "backend/verification/runner.py",
     "backend/verification/security.py",
 )
@@ -37,7 +28,7 @@ class PatchRejected(ValueError):
     pass
 
 
-def validate_source(source: str) -> None:
+def validate_source(source: str, contract_id: str = "fifo") -> None:
     encoded = source.encode("utf-8")
     if len(encoded) > MAX_SOURCE_BYTES:
         raise ValueError("source exceeds the 256 KiB limit")
@@ -45,9 +36,11 @@ def validate_source(source: str) -> None:
         raise ValueError("source contains a NUL byte")
     if FORBIDDEN_SOURCE.search(source):
         raise ValueError("foreign-code and file I/O features are not supported")
-    if not re.search(r"\bmodule\s+fifo\b", source):
-        raise ValueError("source must declare module fifo")
-    for identifier in CANONICAL_IDENTIFIERS[1:]:
+    pack = get_contract_pack(contract_id)
+    module_name = pack.required_identifiers[0]
+    if not re.search(rf"\bmodule\s+{re.escape(module_name)}\b", source):
+        raise ValueError(f"source must declare module {module_name}")
+    for identifier in pack.required_identifiers[1:]:
         if not re.search(rf"\b{re.escape(identifier)}\b", source):
             raise ValueError(f"missing canonical identifier: {identifier}")
 
@@ -78,7 +71,7 @@ def _validate_diff(diff: str) -> None:
             raise PatchRejected("patch may only modify dut.sv")
 
 
-def apply_candidate_patch(original: Path, diff: str, workspace: Path) -> Path:
+def apply_candidate_patch(original: Path, diff: str, workspace: Path, contract_id: str = "fifo") -> Path:
     _validate_diff(diff)
     workspace.mkdir(parents=True, exist_ok=True)
     candidate = workspace / "dut.sv"
@@ -104,7 +97,7 @@ def apply_candidate_patch(original: Path, diff: str, workspace: Path) -> Path:
     )
     if applied.returncode != 0:
         raise PatchRejected(f"patch failed: {applied.stderr.strip()}")
-    validate_source(candidate.read_text(encoding="utf-8"))
+    validate_source(candidate.read_text(encoding="utf-8"), contract_id)
     return candidate
 
 
