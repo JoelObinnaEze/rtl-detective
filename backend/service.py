@@ -133,7 +133,7 @@ class RunManager:
         self, run_id: str, source: Path, source_kind: str, parameters: SimulationParameters
     ) -> None:
         run_root = self.runs_root / run_id
-        limits = RunLimits(max_patch_attempts=3, simulation_timeout_seconds=30)
+        limits = RunLimits(max_patch_attempts=1, simulation_timeout_seconds=30)
 
         def on_event(event: RunEvent) -> None:
             self.store.append_event(run_id, event.state, event.message)
@@ -143,7 +143,7 @@ class RunManager:
         try:
             simulation_runner = run_container_simulation if source_kind == "upload" or docker_available() else run_local_simulation
             limits = RunLimits(
-                max_patch_attempts=int(os.getenv("MAX_PATCH_ATTEMPTS", "3")),
+                max_patch_attempts=int(os.getenv("MAX_PATCH_ATTEMPTS", "1")),
                 simulation_timeout_seconds=int(os.getenv("SIMULATION_TIMEOUT_SECONDS", "30")),
             )
             workflow = RepairWorkflow(

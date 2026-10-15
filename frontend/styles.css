@@ -249,6 +249,14 @@ button:active:not(:focus-visible) { transform: scale(.975); }
 .panel { overflow: hidden; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
 .panel-heading { min-height: 50px; padding: .8rem 1rem; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
 .panel-heading code { min-width: 0; color: var(--muted); font-size: .68rem; overflow-wrap: anywhere; }
+.proof-panel { border-color: rgb(118 185 0 / 28%); }
+.proof-panel .panel-heading .eyebrow { margin-bottom: .35rem; color: var(--accent); }
+.proof-claim { margin: 0; padding: 1rem; color: var(--text); font-size: 1rem; font-weight: 650; line-height: 1.5; }
+.proof-gates { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); margin: 0; border-top: 1px solid var(--border); }
+.proof-gates div { min-width: 0; padding: .85rem 1rem; border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+.proof-gates div:nth-child(3n) { border-right: 0; }
+.proof-gates dt { color: var(--muted); font-size: .62rem; letter-spacing: .08em; text-transform: uppercase; }
+.proof-gates dd { margin: .4rem 0 0; color: #dce3df; font: .7rem/1.45 ui-monospace, SFMono-Regular, Consolas, monospace; overflow-wrap: anywhere; }
 .timeline { margin: 0; padding: 0; list-style: none; }
 .timeline li { position: relative; display: grid; grid-template-columns: minmax(7rem, .35fr) 1fr; gap: 1rem; padding: .9rem 1rem .9rem 2.25rem; border-bottom: 1px solid var(--border); opacity: 1; transform: translateY(0); transition: opacity 180ms var(--ease-out), transform 180ms var(--ease-out); }
 .timeline li:last-child { border-bottom: 0; }
@@ -307,6 +315,8 @@ footer { display: flex; justify-content: space-between; gap: 1rem; padding: .75r
   .empty-state dl { grid-template-columns: 1fr; }
   .empty-state dl div + div { border-left: 0; border-top: 1px solid var(--border); }
   .timeline li { grid-template-columns: 1fr; gap: .25rem; padding-left: 2.25rem; }
+  .proof-gates { grid-template-columns: 1fr; }
+  .proof-gates div, .proof-gates div:nth-child(3n) { border-right: 0; }
   footer { flex-direction: column; align-items: center; padding: .75rem 1rem; text-align: center; }
 }
 

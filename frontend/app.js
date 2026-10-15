@@ -20,6 +20,9 @@ const runTitle = document.querySelector("#run-title");
 const runId = document.querySelector("#run-id");
 const emptyState = document.querySelector("#empty-state");
 const results = document.querySelector("#results");
+const proofPanel = document.querySelector("#proof-panel");
+const proofClaim = document.querySelector("#proof-claim");
+const proofGates = document.querySelector("#proof-gates");
 const timeline = document.querySelector("#timeline");
 const evidencePanel = document.querySelector("#evidence-panel");
 const evidenceBody = document.querySelector("#evidence-body");
@@ -150,6 +153,29 @@ function renderPatch(report) {
   patchPanel.hidden = false;
 }
 
+function renderProof(report) {
+  const attempt = report?.attempts?.at(-1);
+  const requests = attempt?.provider_requests || [];
+  const request = requests.at(-1);
+  const totalTokens = requests.reduce((sum, item) => sum + (item?.usage?.total_tokens || 0), 0);
+  const verification = attempt?.verification;
+  const gates = [
+    ["Baseline", report?.baseline_summary?.status || "not completed"],
+    ["NVIDIA model", request ? `${request.model_id}${totalTokens ? ` · ${totalTokens} tokens` : ""}` : "not called"],
+    ["Reproducer", verification?.reproducer?.status || "not required"],
+    ["Locked regression", verification?.regression?.status || "not required"],
+    ["Locked assets", report?.integrity?.locked_assets_unchanged ? "unchanged" : "not verified"],
+    ["Repair attempts", `${report?.attempts?.length || 0} / ${report?.run_limits?.max_patch_attempts || 0}`],
+  ];
+  proofClaim.textContent = report?.claim || "No proof claim was recorded.";
+  proofGates.replaceChildren(...gates.map(([label, value]) => {
+    const item = element("div");
+    item.append(element("dt", label), element("dd", value));
+    return item;
+  }));
+  proofPanel.hidden = false;
+}
+
 async function loadArtifacts() {
   const items = await api(`/api/runs/${activeRun}/artifacts`);
   artifacts.replaceChildren(...items.map((item) => {
@@ -164,6 +190,7 @@ async function loadArtifacts() {
   const reportItem = items.find((item) => item.name === "report.json");
   if (reportItem) {
     const report = await api(`/api/runs/${activeRun}/artifacts/report.json`);
+    renderProof(report);
     renderEvidence(report);
     renderPatch(report);
   }
@@ -229,6 +256,7 @@ form.addEventListener("submit", async (event) => {
     emptyState.hidden = true;
     results.hidden = false;
     timeline.replaceChildren();
+    proofPanel.hidden = true;
     evidencePanel.hidden = true;
     patchPanel.hidden = true;
     artifactsPanel.hidden = true;

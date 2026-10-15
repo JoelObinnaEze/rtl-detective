@@ -16,10 +16,10 @@
         <span class="brand-mark" aria-hidden="true">RD</span>
         <span class="brand-copy">
           <strong>RTL Detective</strong>
-          <small>Hardware verification workspace</small>
+          <small>Proof-carrying RTL repair</small>
         </span>
       </a>
-      <div class="mode"><span class="pulse" aria-hidden="true"></span><span>Live workflow · Nebius for repairs</span></div>
+      <div class="mode"><span class="pulse" aria-hidden="true"></span><span>Nebius Token Factory × NVIDIA Nemotron</span></div>
     </header>
 
     <main class="shell">
@@ -115,11 +115,22 @@
           <dl>
             <div><dt>Engine</dt><dd>Verilator 5.050</dd></div>
             <div><dt>Trace</dt><dd>Cycle data + VCD</dd></div>
-            <div><dt>Repair budget</dt><dd>≤ 3 candidates</dd></div>
+            <div><dt>Repair budget</dt><dd>≤ 1 candidate by default</dd></div>
           </dl>
         </div>
 
         <div id="results" hidden>
+          <section id="proof-panel" class="panel proof-panel" aria-labelledby="proof-title" hidden>
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">Evidence-backed verdict</p>
+                <h3 id="proof-title">Verification gates</h3>
+              </div>
+            </div>
+            <p id="proof-claim" class="proof-claim"></p>
+            <dl id="proof-gates" class="proof-gates"></dl>
+          </section>
+
           <section class="panel" aria-labelledby="timeline-title">
             <div class="panel-heading">
               <h3 id="timeline-title">Run timeline</h3>

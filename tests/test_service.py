@@ -223,6 +223,7 @@ def test_unexpected_orchestrator_failure_writes_sanitized_proof_before_terminal_
     assert data["schema_version"] == 1
     assert data["status"] == "infrastructure_error"
     assert data["claim"] == "Repair not verified."
+    assert data["run_limits"]["max_patch_attempts"] == 1
     assert data["integrity"]["source_sha256"]
     assert data["integrity"]["locked_assets_unchanged"] is False
     assert data["error"] == {"code": "ORCHESTRATOR_FAILURE", "message": "Run failed inside the orchestrator"}

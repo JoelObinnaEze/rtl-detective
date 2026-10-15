@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from contextlib import AbstractAsyncContextManager
+import os
 from pathlib import Path
 from typing import Annotated, Callable, Literal, Protocol
 
@@ -137,6 +138,18 @@ def create_app(
     @app.get("/api/examples")
     def examples() -> list[dict[str, object]]:
         return manager.examples()
+
+    @app.get("/api/health")
+    def health() -> dict[str, object]:
+        model_id = os.getenv("NEBIUS_MODEL_ID") or None
+        return {
+            "status": "ok",
+            "provider": {
+                "name": "Nebius Token Factory",
+                "configured": bool(os.getenv("NEBIUS_API_KEY") and model_id),
+                "modelId": model_id,
+            },
+        }
 
     frontend = Path(__file__).parents[1] / "frontend"
     if frontend.exists():

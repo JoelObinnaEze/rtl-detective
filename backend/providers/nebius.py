@@ -59,6 +59,7 @@ class NebiusProvider:
         client: httpx.Client | None = None,
         timeout_seconds: float = 45,
         retries: int = 2,
+        max_tokens: int = 2048,
     ) -> None:
         if not api_key:
             raise ProviderError("NEBIUS_API_KEY is required for live mode")
@@ -67,8 +68,13 @@ class NebiusProvider:
         parsed = urlparse(base_url)
         if parsed.scheme != "https" or not (parsed.hostname or "").endswith("nebius.com"):
             raise ProviderError("NEBIUS_BASE_URL must be an HTTPS nebius.com endpoint")
+        if not 0 <= retries <= 2:
+            raise ProviderError("NEBIUS_MAX_RETRIES must be an integer between 0 and 2")
+        if not 256 <= max_tokens <= 4096:
+            raise ProviderError("NEBIUS_MAX_OUTPUT_TOKENS must be an integer between 256 and 4096")
         self.model_id = model_id
         self.retries = retries
+        self.max_tokens = max_tokens
         self.client = client or httpx.Client(
             base_url=base_url.rstrip("/") + "/",
             headers={"Authorization": f"Bearer {api_key}"},
@@ -77,10 +83,17 @@ class NebiusProvider:
 
     @classmethod
     def from_env(cls) -> "NebiusProvider":
+        try:
+            retries = int(os.getenv("NEBIUS_MAX_RETRIES", "0"))
+            max_tokens = int(os.getenv("NEBIUS_MAX_OUTPUT_TOKENS", "1024"))
+        except ValueError as error:
+            raise ProviderError("Nebius request budgets must be integers") from error
         return cls(
             api_key=os.getenv("NEBIUS_API_KEY", ""),
             model_id=os.getenv("NEBIUS_MODEL_ID", ""),
             base_url=os.getenv("NEBIUS_BASE_URL", DEFAULT_BASE_URL),
+            retries=retries,
+            max_tokens=max_tokens,
         )
 
     def discover_nvidia_models(self) -> list[str]:
@@ -126,7 +139,7 @@ class NebiusProvider:
         body = {
             "model": self.model_id,
             "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
-            "max_tokens": 2048,
+            "max_tokens": self.max_tokens,
             "temperature": 0,
             "response_format": {"type": "json_schema", "json_schema": schema.model_json_schema()},
         }

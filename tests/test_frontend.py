@@ -51,3 +51,16 @@ def test_frontend_explains_the_verification_pipeline_and_uses_precise_motion() -
     assert ":active:not(:focus-visible)" in styles
     assert "prefers-reduced-motion: reduce" in styles
 
+
+def test_frontend_surfaces_the_proof_chain_and_runtime_provider() -> None:
+    html = (ROOT / "frontend/index.html").read_text(encoding="utf-8")
+    script = (ROOT / "frontend/app.js").read_text(encoding="utf-8")
+
+    assert "Nebius Token Factory × NVIDIA Nemotron" in html
+    assert 'id="proof-panel"' in html
+    assert 'id="proof-claim"' in html
+    assert 'id="proof-gates"' in html
+    assert "function renderProof(report)" in script
+    assert "report?.claim" in script
+    assert "locked_assets_unchanged" in script
+

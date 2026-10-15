@@ -45,6 +45,7 @@ def test_investigation_response_is_schema_validated() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         body = json.loads(request.content)
         assert body["model"] == "nvidia/example-nemotron"
+        assert body["max_tokens"] == 512
         return httpx.Response(
             200,
             headers={"x-request-id": "request-1"},
@@ -75,6 +76,7 @@ def test_investigation_response_is_schema_validated() -> None:
         api_key="test-key",
         model_id="nvidia/example-nemotron",
         client=httpx.Client(transport=httpx.MockTransport(handler), base_url="https://api.tokenfactory.nebius.com/v1/"),
+        max_tokens=512,
     )
 
     reply = provider.investigate("bounded evidence")
@@ -103,4 +105,42 @@ def test_investigation_transaction_can_describe_an_arbiter_request() -> None:
     action = TransactionAction(rst=False, request=0b101)
 
     assert action.request == 0b101
+
+
+def test_from_env_applies_the_live_request_budget(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("NEBIUS_API_KEY", "test-key")
+    monkeypatch.setenv("NEBIUS_MODEL_ID", "nvidia/example-nemotron")
+    monkeypatch.setenv("NEBIUS_MAX_RETRIES", "0")
+    monkeypatch.setenv("NEBIUS_MAX_OUTPUT_TOKENS", "768")
+
+    provider = NebiusProvider.from_env()
+    try:
+        assert provider.retries == 0
+        assert provider.max_tokens == 768
+    finally:
+        provider.client.close()
+
+
+def test_from_env_rejects_an_invalid_live_request_budget(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("NEBIUS_API_KEY", "test-key")
+    monkeypatch.setenv("NEBIUS_MODEL_ID", "nvidia/example-nemotron")
+    monkeypatch.setenv("NEBIUS_MAX_OUTPUT_TOKENS", "not-a-number")
+
+    with pytest.raises(ProviderError, match="integer"):
+        NebiusProvider.from_env()
+
+
+@pytest.mark.parametrize(
+    ("name", "value"),
+    [("NEBIUS_MAX_RETRIES", "3"), ("NEBIUS_MAX_OUTPUT_TOKENS", "128")],
+)
+def test_from_env_rejects_an_out_of_range_live_request_budget(
+    monkeypatch: pytest.MonkeyPatch, name: str, value: str
+) -> None:
+    monkeypatch.setenv("NEBIUS_API_KEY", "test-key")
+    monkeypatch.setenv("NEBIUS_MODEL_ID", "nvidia/example-nemotron")
+    monkeypatch.setenv(name, value)
+
+    with pytest.raises(ProviderError, match="between"):
+        NebiusProvider.from_env()
 
