@@ -44,15 +44,14 @@ Most AI coding demos end at generated code or a green test badge. RTL Detective 
 
 ## Measured evidence
 
-On October 14, 2026, a real `case-001` repair completed using `nvidia/nemotron-3-super-120b-a12b`:
+On October 15, 2026, a real `case-001` repair completed using `nvidia/nemotron-3-super-120b-a12b`:
 
 - 2 provider requests
-- 1,840 prompt + 825 completion = 2,665 total tokens
-- estimated inference cost: `$0.001295` at the catalog rates observed that day
+- 1,789 prompt + 683 completion = 2,472 total tokens
 - baseline: functional mismatch; investigation: reproduced
 - candidate: reproducer passed; 80-transaction locked regression passed
 - locked verification assets unchanged
-- candidate SHA-256: `562129ef969a0e56e4818637dba9dfa7ad54de6f5086e437f56a28e10794d6ab`
+- candidate SHA-256: `a2244aa9657ed91e9c8022c3402d2417e138f05181b1ff33c1adbc98f8cfd56b`
 
 The bundled benchmark also contains 10 hidden-label cases: 6 defective and 4 correct across FIFO and arbiter contracts. The FIFO parameter matrix passed all 18 configurations and all 54 recorded seed/configuration combinations. These are simulation results for the named contracts, not formal proof.
 

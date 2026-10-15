@@ -36,6 +36,7 @@ const artifacts = document.querySelector("#artifacts");
 let activeRun = null;
 let eventStream = null;
 let examples = [];
+const requestedRun = new URLSearchParams(window.location.search).get("run");
 const terminalStates = ["completed", "unresolved", "invalid_input", "cancelled", "infrastructure_error"];
 
 const contractDetails = {
@@ -302,6 +303,7 @@ form.addEventListener("submit", async (event) => {
       body: JSON.stringify(body),
     });
     activeRun = created.id;
+    history.replaceState(null, "", `?run=${activeRun}`);
     emptyState.hidden = true;
     results.hidden = false;
     timeline.replaceChildren();
@@ -338,4 +340,18 @@ refresh.addEventListener("click", recoverRun);
 updateContract();
 loadExamples();
 loadHealth();
+
+if (requestedRun) {
+  if (/^[0-9a-f]{32}$/.test(requestedRun)) {
+    activeRun = requestedRun;
+    emptyState.hidden = true;
+    results.hidden = false;
+    runId.textContent = activeRun;
+    runTitle.textContent = "Loading saved run";
+    setStatus("queued");
+    recoverRun();
+  } else {
+    formError.textContent = "This saved-run link is invalid.";
+  }
+}
 

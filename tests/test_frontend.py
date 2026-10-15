@@ -76,3 +76,12 @@ def test_frontend_surfaces_runtime_readiness_and_stream_recovery() -> None:
     assert 'refresh.addEventListener("click", recoverRun)' in script
     assert "finishRun().catch(handleRunError)" in script
 
+
+def test_frontend_can_reopen_a_saved_run_from_a_valid_deep_link() -> None:
+    script = (ROOT / "frontend/app.js").read_text(encoding="utf-8")
+
+    assert 'new URLSearchParams(window.location.search).get("run")' in script
+    assert '/^[0-9a-f]{32}$/' in script
+    assert 'history.replaceState(null, "", `?run=${activeRun}`)' in script
+    assert "recoverRun();" in script
+
