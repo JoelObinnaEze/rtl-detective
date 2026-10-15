@@ -18,7 +18,7 @@ Follow the live states: baseline → investigating → patching. Say that only b
 
 ## 1:20–1:50 — Candidate under test
 
-Show the diagnosis and candidate diff. Explain that Nemotron returns structured source lines, the host builds the canonical diff, and the only editable file is `dut.sv`. Point out that test-disabling code and simulator control tasks are rejected before execution.
+Show the diagnosis and candidate diff. Explain that Nemotron returns structured source lines, the host restores the locked module header before building the canonical diff, and the only editable file is `dut.sv`. Point out that test-disabling code and simulator control tasks are rejected before execution.
 
 ## 1:50–2:25 — Proof gates
 

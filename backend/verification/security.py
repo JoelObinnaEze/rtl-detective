@@ -83,6 +83,14 @@ def _module_header(source: str) -> str:
     return match.group(0)
 
 
+def restore_module_header(original_source: str, candidate_source: str) -> str:
+    original_header = _module_header(original_source)
+    candidate_match = MODULE_HEADER.search(candidate_source)
+    if not candidate_match:
+        raise PatchRejected("source has no complete module header")
+    return candidate_source[: candidate_match.start()] + original_header + candidate_source[candidate_match.end() :]
+
+
 def apply_candidate_patch(original: Path, diff: str, workspace: Path, contract_id: str = "fifo") -> Path:
     _validate_diff(diff)
     original_source = original.read_text(encoding="utf-8")

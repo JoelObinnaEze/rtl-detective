@@ -7,6 +7,7 @@ from backend.verification.security import (
     PatchRejected,
     apply_candidate_patch,
     hash_locked_assets,
+    restore_module_header,
     validate_source,
 )
 
@@ -69,7 +70,7 @@ def test_patch_rejects_attempt_to_disable_checks(tmp_path: Path) -> None:
         apply_candidate_patch(SOURCE, diff, tmp_path)
 
 
-def test_patch_rejects_module_header_changes(tmp_path: Path) -> None:
+def test_direct_patch_rejects_module_header_changes(tmp_path: Path) -> None:
     diff = """diff --git a/dut.sv b/dut.sv
 --- a/dut.sv
 +++ b/dut.sv
@@ -85,6 +86,21 @@ def test_patch_rejects_module_header_changes(tmp_path: Path) -> None:
 
     with pytest.raises(PatchRejected, match="module header"):
         apply_candidate_patch(SOURCE, diff, tmp_path)
+
+
+def test_host_restores_the_original_header_before_building_a_diff() -> None:
+    original = SOURCE.read_text(encoding="utf-8")
+    proposed = original.replace("parameter int DEPTH = 4", "parameter int DEPTH = 3").replace(
+        "count <= count + 1'b1;",
+        "count <= count + 2'b01;",
+        1,
+    )
+
+    restored = restore_module_header(original, proposed)
+
+    assert "parameter int DEPTH = 4" in restored
+    assert "parameter int DEPTH = 3" not in restored
+    assert "count <= count + 2'b01;" in restored
 
 
 def test_patch_applies_to_candidate_inside_parent_repository(tmp_path: Path) -> None:

@@ -63,7 +63,7 @@ The bundled benchmark contains ten opaque cases: four FIFO defects, two correct 
 2. The selected pack supplies a human-authored testbench, directed and seeded-random transactions, an executable oracle, and a locked regression suite.
 3. Verilator 5.050 emits observations and a VCD; the selected oracle records the first cycle-level mismatch.
 4. Only bounded evidence and untrusted DUT text are sent to the configured Nemotron model.
-5. Nemotron returns the complete candidate as structured source lines; the host creates the canonical unified diff for `dut.sv`. Module-header edits, check-disabling edits, foreign code, path traversal, symlinks, and oversized inputs are rejected.
+5. Nemotron returns the complete candidate as structured source lines; the host restores the original locked module header, then creates the canonical unified diff for `dut.sv`. Any surviving header edit, check-disabling edit, foreign code, path traversal, symlink, or oversized input is rejected.
 6. Every candidate reruns its proposed reproducer and the locked suite. Oracle, test template, and restriction hashes are compared before and after.
 7. SQLite stores ordered events; per-run directories store reports, source, candidate, traces, and a ZIP bundle.
 
@@ -108,6 +108,7 @@ Verified locally on October 14, 2026:
 - The published offline matrix passed 18/18 configurations across three recorded seeds per configuration (54 seed/configuration combinations). Raw local output is in `artifacts/evaluation/matrix-results.json`.
 - The pinned `verilator/verilator:v5.050` worker passed an actual Docker simulation with its network, filesystem, privilege, and resource restrictions enabled.
 - A live `case-001` repair completed through Nebius Token Factory with `nvidia/nemotron-3-super-120b-a12b`: 2 requests, 1,840 prompt tokens, 825 completion tokens, 2,665 total tokens, and an estimated `$0.001295` at the catalog rates observed that day. The model-proposed stimulus was safely replaced by the exact baseline failure prefix when it did not reproduce; the resulting candidate passed both that reproducer and the 80-transaction locked regression while locked assets remained unchanged.
+- An October 15 hardening confirmation reached the same live provider/model with two recorded request IDs and 2,492 total tokens. It correctly refused to claim a repair when the model specialized a locked parameter default; that result led to deterministic host-side header restoration before canonical diff generation, covered by offline regression tests without another paid call.
 
 Judge and submission material: [submission copy](SUBMISSION.md), [three-minute demo script](docs/DEMO_SCRIPT.md), [deployment runbook](docs/DEPLOYMENT.md), and [evaluation record](docs/EVALUATION.md).
 

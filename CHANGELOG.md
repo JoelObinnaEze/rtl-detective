@@ -31,4 +31,5 @@
 - Recover the browser from event-stream or final-result fetch failures with an explicit refresh action instead of leaving controls stuck.
 - Use Starlette's supported `httpx2` test transport, removing the deprecated fallback warning from the judge test suite.
 - Close every SQLite connection deterministically and treat all test warnings as failures.
+- Restore the original locked module header before generating a model candidate's canonical diff, preventing runtime parameter specialization without weakening the direct patch guard.
 

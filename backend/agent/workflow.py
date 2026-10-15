@@ -36,6 +36,7 @@ from backend.verification.security import (
     PatchRejected,
     apply_candidate_patch,
     hash_locked_assets,
+    restore_module_header,
     validate_source,
 )
 
@@ -332,7 +333,10 @@ class RepairWorkflow:
             patch_record = _provider_record(patch_reply)
             records.append(patch_record)
             candidate_dir = workspace / f"attempt-{number}" / "candidate"
-            candidate_source = "\n".join(patch_reply.value.source_lines) + "\n"
+            proposed_source = "\n".join(patch_reply.value.source_lines) + "\n"
+            candidate_source = restore_module_header(source, proposed_source)
+            if candidate_source != proposed_source:
+                emit("patching", "Restored locked module header before candidate verification")
             candidate_diff = "".join(
                 difflib.unified_diff(
                     source.splitlines(keepends=True),

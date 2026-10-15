@@ -78,6 +78,16 @@ class FailingPatchProvider(FakeProvider):
         raise ProviderError("private provider payload")
 
 
+class HeaderChangingProvider(FakeProvider):
+    def propose_patch(self, source_and_evidence: str) -> ModelReply[PatchAction]:
+        reply = super().propose_patch(source_and_evidence)
+        changed = "\n".join(reply.value.source_lines).replace(
+            "parameter int DEPTH = 4", "parameter int DEPTH = 3"
+        )
+        action = PatchAction(diagnosis=reply.value.diagnosis, source_lines=changed.splitlines())
+        return ModelReply(action, "fake", "fake/nemotron", 1, {"total_tokens": 1}, "patch-1")
+
+
 def mismatch(parameters: SimulationParameters) -> SimulationOutcome:
     failure = FifoFailure(
         cycle=3,
@@ -165,6 +175,24 @@ def test_reproduced_bug_is_patched_and_independently_retested(tmp_path: Path) ->
     assert attempt["verification"]["reproducer"]["status"] == "passed"
     assert attempt["verification"]["regression"]["status"] == "passed"
     assert serialized["claim"] == "Candidate passed the reproducer and listed locked regression tests."
+
+
+def test_model_header_edits_are_restored_before_candidate_verification(tmp_path: Path) -> None:
+    source_path = ROOT / "benchmark/designs/buggy/simultaneous_count.sv"
+    provider = HeaderChangingProvider(source_path.read_text(encoding="utf-8"))
+    parameters = SimulationParameters(data_width=8, depth=3)
+    outcomes = iter([mismatch(parameters), mismatch(parameters), passed(parameters), passed(parameters)])
+
+    report = RepairWorkflow(
+        provider=provider,
+        max_patch_attempts=1,
+        simulation_runner=lambda *_args: next(outcomes),
+    ).run(source_path, parameters, tmp_path)
+
+    attempt = report.to_dict()["attempts"][0]
+    assert report.verdict == "candidate_passed_listed_tests"
+    assert "+  parameter int DEPTH = 3" not in attempt["diff"]
+    assert any("Restored locked module header" in event.message for event in report.events)
 
 
 def test_nonreproducing_model_stimulus_falls_back_to_the_baseline_prefix(tmp_path: Path) -> None:
