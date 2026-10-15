@@ -68,6 +68,16 @@ def test_claim_requires_every_success_gate() -> None:
         )
         == "Failure reproduced; repair not verified."
     )
+    assert (
+        derive_claim(
+            "candidate_passed_listed_tests",
+            baseline_status="functional_mismatch",
+            reproducer_status="passed",
+            regression_status="passed",
+            locked_assets_unchanged=False,
+        )
+        == "Failure reproduced; repair not verified."
+    )
 
 
 def test_proof_metadata_is_immutable_and_explicit() -> None:

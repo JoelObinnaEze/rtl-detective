@@ -40,14 +40,14 @@ SimulationOutcome + model replies + executed transactions
 ### Phase 1: Executed proof
 
 - [x] Task 1: Emit proof for deterministic baseline runs
-- [ ] Task 2: Capture the complete model-assisted attempt trail
+- [x] Task 2: Capture the complete model-assisted attempt trail
 
 ### Checkpoint: Workflow proof
 
-- [ ] Focused proof and workflow tests pass
-- [ ] Correct designs make zero provider calls
-- [ ] Successful repair claims require all three verification gates
-- [ ] Mutation check proves a removed gate fails a test
+- [x] Focused proof and workflow tests pass
+- [x] Correct designs make zero provider calls
+- [x] Successful repair claims require all three verification gates
+- [x] Mutation check proves a removed gate fails a test
 
 ### Phase 2: Portable artifacts
 

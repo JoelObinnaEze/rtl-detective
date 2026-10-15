@@ -32,15 +32,15 @@
 
 **Acceptance criteria:**
 
-- [ ] Every recorded transaction was actually converted by the selected contract pack and executed by the simulator.
-- [ ] Patch rejection, non-reproducing investigation, failed regression, provider failure, cancellation, and multi-attempt paths retain complete partial evidence without a success claim.
-- [ ] `candidate_passed_listed_tests` requires a passing reproducer, passing locked regression, and unchanged locked hashes.
+- [x] Every recorded transaction was actually converted by the selected contract pack and executed by the simulator.
+- [x] Patch rejection, non-reproducing investigation, failed regression, provider failure, cancellation, and multi-attempt paths retain complete partial evidence without a success claim.
+- [x] `candidate_passed_listed_tests` requires a passing reproducer, passing locked regression, and unchanged locked hashes.
 
 **Verification:**
 
-- [ ] Red-first tests pass: `.\.venv\Scripts\python.exe -m pytest tests/test_proof.py tests/test_workflow.py -q`
-- [ ] Mutation check: bypass one successful-repair gate, confirm a focused test fails, then restore it.
-- [ ] Static check passes: `ruff check backend/agent/proof.py backend/agent/workflow.py tests/test_proof.py tests/test_workflow.py`
+- [x] Red-first tests pass: `.\.venv\Scripts\python.exe -m pytest tests/test_proof.py tests/test_workflow.py -q`
+- [x] Mutation check: bypass one successful-repair gate, confirm a focused test fails, then restore it.
+- [x] Static check passes: `ruff check backend/agent/proof.py backend/agent/workflow.py tests/test_proof.py tests/test_workflow.py`
 
 **Dependencies:** Task 1
 
@@ -55,9 +55,9 @@
 
 ## Checkpoint: Workflow proof
 
-- [ ] Tasks 1 and 2 acceptance criteria pass.
-- [ ] The workflow remains green for correct FIFO, repaired FIFO, and correct arbiter fixtures.
-- [ ] A fresh diff review finds no model-controlled success claims.
+- [x] Tasks 1 and 2 acceptance criteria pass.
+- [x] The workflow remains green for correct FIFO, repaired FIFO, and correct arbiter fixtures.
+- [x] A fresh diff review finds no model-controlled success claims.
 
 ## Task 3: Persist coherent and sanitized proof artifacts
 

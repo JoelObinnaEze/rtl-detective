@@ -5,7 +5,17 @@ from hashlib import sha256
 from pathlib import Path
 from typing import Callable, Protocol
 
-from backend.agent.proof import IntegrityProof, OutcomeSummary, RunLimits, derive_claim, summarize_outcome
+from backend.agent.proof import (
+    CandidateProof,
+    IntegrityProof,
+    InvestigationProof,
+    OutcomeSummary,
+    RunLimits,
+    VerificationProof,
+    derive_claim,
+    record_transactions,
+    summarize_outcome,
+)
 from backend.providers.nebius import InvestigationAction, ModelReply, PatchAction, ProviderError
 from backend.verification.packs import ContractPack, get_contract_pack
 from backend.verification.runner import (
@@ -39,6 +49,10 @@ class AttemptReport:
     reproducer_status: str | None
     regression_status: str | None
     provider_requests: list[dict[str, object]] = field(default_factory=list)
+    investigation: InvestigationProof | None = None
+    candidate: CandidateProof | None = None
+    verification: VerificationProof | None = None
+    error: str | None = None
 
 
 @dataclass(frozen=True)
@@ -171,108 +185,197 @@ class RepairWorkflow:
         feedback = ""
         try:
             self.provider.verify_model()
-            for number in range(1, self.max_patch_attempts + 1):
-                if self.is_cancelled():
-                    emit("cancelled", "Run cancelled before the next model call")
-                    return self._finish("cancelled", "cancelled", source_hash, parameters, baseline, attempts, events, locked_before, None)
-
-                emit("investigating", f"Requesting bounded investigation {number}")
-                investigation = self.provider.investigate(_evidence(source, baseline, pack, feedback))
-                targeted = [pack.transaction_from_action(item) for item in investigation.value.transactions]
-                investigation_outcome = self.simulation_runner(
-                    original,
-                    targeted,
-                    parameters,
-                    workspace / f"attempt-{number}" / "investigation",
-                    self.simulation_timeout_seconds,
-                )
-                records = [_provider_record(investigation)]
-                if investigation_outcome.status != "functional_mismatch":
-                    attempts.append(
-                        AttemptReport(
-                            number,
-                            investigation.value.hypothesis,
-                            None,
-                            None,
-                            investigation_outcome.status,
-                            None,
-                            None,
-                            records,
-                        )
-                    )
-                    feedback = "The proposed investigation did not reproduce a mismatch."
-                    continue
-
-                emit("patching", f"Failure reproduced; requesting candidate patch {number}")
-                patch_reply = self.provider.propose_patch(
-                    _evidence(source, investigation_outcome, pack, investigation.value.hypothesis)
-                )
-                records.append(_provider_record(patch_reply))
-                candidate_dir = workspace / f"attempt-{number}" / "candidate"
-                try:
-                    candidate = apply_candidate_patch(original, patch_reply.value.diff, candidate_dir, pack.id)
-                except PatchRejected as error:
-                    attempts.append(
-                        AttemptReport(
-                            number,
-                            investigation.value.hypothesis,
-                            patch_reply.value.diagnosis,
-                            patch_reply.value.diff,
-                            investigation_outcome.status,
-                            "patch_rejected",
-                            None,
-                            records,
-                        )
-                    )
-                    feedback = str(error)
-                    continue
-
-                emit("regression", f"Evaluating candidate {number} against reproducer and locked tests")
-                reproducer = self.simulation_runner(
-                    candidate,
-                    targeted,
-                    parameters,
-                    workspace / f"attempt-{number}" / "reproducer",
-                    self.simulation_timeout_seconds,
-                )
-                regression = self.simulation_runner(
-                    candidate,
-                    transactions,
-                    parameters,
-                    workspace / f"attempt-{number}" / "regression",
-                    self.simulation_timeout_seconds,
-                )
-                attempts.append(
-                    AttemptReport(
-                        number,
-                        investigation.value.hypothesis,
-                        patch_reply.value.diagnosis,
-                        patch_reply.value.diff,
-                        investigation_outcome.status,
-                        reproducer.status,
-                        regression.status,
-                        records,
-                    )
-                )
-                if reproducer.status == regression.status == "passed":
-                    emit("completed", "Candidate passed the reproducer and listed locked regression tests")
-                    return self._finish(
-                        "completed",
-                        "candidate_passed_listed_tests",
-                        source_hash,
-                        parameters,
-                        baseline,
-                        attempts,
-                        events,
-                        locked_before,
-                        candidate,
-                    )
-                feedback = f"Candidate results: reproducer={reproducer.status}, regression={regression.status}."
         except ProviderError as error:
             emit("infrastructure_error", f"Provider error: {error}")
             return self._finish(
                 "infrastructure_error", "provider_error", source_hash, parameters, baseline, attempts, events, locked_before, None
             )
+
+        for number in range(1, self.max_patch_attempts + 1):
+            if self.is_cancelled():
+                emit("cancelled", "Run cancelled before the next model call")
+                return self._finish("cancelled", "cancelled", source_hash, parameters, baseline, attempts, events, locked_before, None)
+
+            emit("investigating", f"Requesting bounded investigation {number}")
+            try:
+                investigation = self.provider.investigate(_evidence(source, baseline, pack, feedback))
+            except ProviderError as error:
+                attempts.append(
+                    AttemptReport(
+                        attempt=number,
+                        hypothesis="Provider did not return an investigation.",
+                        diagnosis=None,
+                        diff=None,
+                        investigation_status="provider_error",
+                        reproducer_status=None,
+                        regression_status=None,
+                        error=str(error),
+                    )
+                )
+                emit("infrastructure_error", f"Provider error: {error}")
+                return self._finish(
+                    "infrastructure_error", "provider_error", source_hash, parameters, baseline, attempts, events, locked_before, None
+                )
+
+            targeted = [pack.transaction_from_action(item) for item in investigation.value.transactions]
+            investigation_outcome = self.simulation_runner(
+                original,
+                targeted,
+                parameters,
+                workspace / f"attempt-{number}" / "investigation",
+                self.simulation_timeout_seconds,
+            )
+            investigation_record = _provider_record(investigation)
+            investigation_proof = InvestigationProof(
+                hypothesis=investigation.value.hypothesis,
+                evidence_cycles=investigation.value.evidence_cycles,
+                transactions=record_transactions(targeted, parameters),
+                outcome=summarize_outcome(
+                    investigation_outcome,
+                    transaction_count=len(targeted),
+                    trace_artifact=f"work/attempt-{number}/investigation/trace.vcd"
+                    if investigation_outcome.trace_path
+                    else None,
+                ),
+                provider_request=investigation_record,
+            )
+            records = [investigation_record]
+            if investigation_outcome.status != "functional_mismatch":
+                attempts.append(
+                    AttemptReport(
+                        attempt=number,
+                        hypothesis=investigation.value.hypothesis,
+                        diagnosis=None,
+                        diff=None,
+                        investigation_status=investigation_outcome.status,
+                        reproducer_status=None,
+                        regression_status=None,
+                        provider_requests=records,
+                        investigation=investigation_proof,
+                    )
+                )
+                feedback = "The proposed investigation did not reproduce a mismatch."
+                continue
+
+            emit("patching", f"Failure reproduced; requesting candidate patch {number}")
+            try:
+                patch_reply = self.provider.propose_patch(
+                    _evidence(source, investigation_outcome, pack, investigation.value.hypothesis)
+                )
+            except ProviderError as error:
+                attempts.append(
+                    AttemptReport(
+                        attempt=number,
+                        hypothesis=investigation.value.hypothesis,
+                        diagnosis=None,
+                        diff=None,
+                        investigation_status=investigation_outcome.status,
+                        reproducer_status=None,
+                        regression_status=None,
+                        provider_requests=records,
+                        investigation=investigation_proof,
+                        error=str(error),
+                    )
+                )
+                emit("infrastructure_error", f"Provider error: {error}")
+                return self._finish(
+                    "infrastructure_error", "provider_error", source_hash, parameters, baseline, attempts, events, locked_before, None
+                )
+
+            patch_record = _provider_record(patch_reply)
+            records.append(patch_record)
+            candidate_dir = workspace / f"attempt-{number}" / "candidate"
+            try:
+                candidate = apply_candidate_patch(original, patch_reply.value.diff, candidate_dir, pack.id)
+            except PatchRejected as error:
+                attempts.append(
+                    AttemptReport(
+                        attempt=number,
+                        hypothesis=investigation.value.hypothesis,
+                        diagnosis=patch_reply.value.diagnosis,
+                        diff=patch_reply.value.diff,
+                        investigation_status=investigation_outcome.status,
+                        reproducer_status="patch_rejected",
+                        regression_status=None,
+                        provider_requests=records,
+                        investigation=investigation_proof,
+                        candidate=CandidateProof(
+                            diagnosis=patch_reply.value.diagnosis,
+                            diff=patch_reply.value.diff,
+                            source_sha256=None,
+                            rejection_reason=str(error),
+                            provider_request=patch_record,
+                        ),
+                    )
+                )
+                feedback = str(error)
+                continue
+
+            emit("regression", f"Evaluating candidate {number} against reproducer and locked tests")
+            reproducer = self.simulation_runner(
+                candidate,
+                targeted,
+                parameters,
+                workspace / f"attempt-{number}" / "reproducer",
+                self.simulation_timeout_seconds,
+            )
+            regression = self.simulation_runner(
+                candidate,
+                transactions,
+                parameters,
+                workspace / f"attempt-{number}" / "regression",
+                self.simulation_timeout_seconds,
+            )
+            attempts.append(
+                AttemptReport(
+                    attempt=number,
+                    hypothesis=investigation.value.hypothesis,
+                    diagnosis=patch_reply.value.diagnosis,
+                    diff=patch_reply.value.diff,
+                    investigation_status=investigation_outcome.status,
+                    reproducer_status=reproducer.status,
+                    regression_status=regression.status,
+                    provider_requests=records,
+                    investigation=investigation_proof,
+                    candidate=CandidateProof(
+                        diagnosis=patch_reply.value.diagnosis,
+                        diff=patch_reply.value.diff,
+                        source_sha256=sha256(candidate.read_bytes()).hexdigest(),
+                        rejection_reason=None,
+                        provider_request=patch_record,
+                    ),
+                    verification=VerificationProof(
+                        reproducer=summarize_outcome(
+                            reproducer,
+                            transaction_count=len(targeted),
+                            trace_artifact=f"work/attempt-{number}/reproducer/trace.vcd"
+                            if reproducer.trace_path
+                            else None,
+                        ),
+                        regression=summarize_outcome(
+                            regression,
+                            transaction_count=len(transactions),
+                            trace_artifact=f"work/attempt-{number}/regression/trace.vcd"
+                            if regression.trace_path
+                            else None,
+                        ),
+                    ),
+                )
+            )
+            if reproducer.status == regression.status == "passed":
+                emit("completed", "Candidate passed the reproducer and listed locked regression tests")
+                return self._finish(
+                    "completed",
+                    "candidate_passed_listed_tests",
+                    source_hash,
+                    parameters,
+                    baseline,
+                    attempts,
+                    events,
+                    locked_before,
+                    candidate,
+                )
+            feedback = f"Candidate results: reproducer={reproducer.status}, regression={regression.status}."
 
         emit("unresolved", "No candidate passed before the attempt limit")
         return self._finish("unresolved", "repair_not_verified", source_hash, parameters, baseline, attempts, events, locked_before, None)
