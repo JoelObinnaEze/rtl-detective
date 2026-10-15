@@ -26,7 +26,7 @@ The model is an **untrusted proposer**, not the authority. Every run ends with a
 
 ## Measured results
 
-These are bounded results for the supported contracts—not a repair-rate benchmark or formal verification claim.
+These are bounded results for the supported contracts, not a repair-rate benchmark or formal verification claim.
 
 | Evaluation | Result |
 |---|---:|
