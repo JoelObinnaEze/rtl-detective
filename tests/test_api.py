@@ -1,5 +1,6 @@
 from pathlib import Path
 
+import pytest
 from fastapi.testclient import TestClient
 
 from backend.api import create_app
@@ -70,6 +71,22 @@ def test_create_run_requires_exactly_one_source(tmp_path: Path) -> None:
         "/api/runs",
         headers={"Idempotency-Key": "intent-1"},
         json={"exampleId": "case-005", "source": "module fifo; endmodule", "dataWidth": 8, "depth": 3},
+    )
+
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "VALIDATION_ERROR"
+
+
+@pytest.mark.parametrize("payload", [{"exampleId": ""}, {"source": ""}])
+def test_create_run_rejects_empty_source_selectors(tmp_path: Path, payload: dict[str, str]) -> None:
+    artifact = tmp_path / "report.json"
+    artifact.write_text("{}", encoding="utf-8")
+    client = TestClient(create_app(StubManager(artifact)))
+
+    response = client.post(
+        "/api/runs",
+        headers={"Idempotency-Key": "intent-1"},
+        json=payload,
     )
 
     assert response.status_code == 422

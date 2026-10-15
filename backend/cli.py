@@ -16,12 +16,13 @@ def _parser() -> argparse.ArgumentParser:
     subcommands = parser.add_subparsers(dest="command", required=True)
 
     verify = subcommands.add_parser("verify", help="run the locked verification workflow")
-    verify.add_argument("--example", default="case-005")
-    verify.add_argument("--source", type=Path)
+    source = verify.add_mutually_exclusive_group()
+    source.add_argument("--example")
+    source.add_argument("--source", type=Path)
     verify.add_argument("--contract", choices=("fifo", "arbiter"))
-    verify.add_argument("--data-width", type=int, default=8)
-    verify.add_argument("--depth", type=int, default=3)
-    verify.add_argument("--requesters", type=int, default=4)
+    verify.add_argument("--data-width", type=int)
+    verify.add_argument("--depth", type=int)
+    verify.add_argument("--requesters", type=int)
     verify.add_argument("--artifacts", type=Path, default=Path("artifacts"))
 
     subcommands.add_parser("models", help="list NVIDIA/Nemotron model IDs available to this account")
@@ -35,17 +36,25 @@ def _parser() -> argparse.ArgumentParser:
 def _verify(args: argparse.Namespace) -> int:
     manager = RunManager(args.artifacts)
     try:
-        request_data = {
-            "dataWidth": args.data_width,
-            "depth": args.depth,
-            "requesters": args.requesters,
-            **({"contractId": args.contract} if args.contract else {}),
-            **(
-                {"source": args.source.read_text(encoding="utf-8")}
-                if args.source
-                else {"exampleId": args.example}
-            ),
-        }
+        if args.source:
+            request_data = {
+                "source": args.source.read_text(encoding="utf-8"),
+                "dataWidth": args.data_width if args.data_width is not None else 8,
+                "depth": args.depth if args.depth is not None else 3,
+                "requesters": args.requesters if args.requesters is not None else 4,
+            }
+        else:
+            default_example = "arbiter-case-003" if args.contract == "arbiter" else "case-005"
+            request_data = {"exampleId": args.example or default_example}
+            for name, value in (
+                ("dataWidth", args.data_width),
+                ("depth", args.depth),
+                ("requesters", args.requesters),
+            ):
+                if value is not None:
+                    request_data[name] = value
+        if args.contract:
+            request_data["contractId"] = args.contract
         request = CreateRunRequest.model_validate(request_data)
         run_id = manager.submit(request, None)
         print(f"run {run_id}")
@@ -90,7 +99,11 @@ def _models() -> int:
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     if args.command == "verify":
-        return _verify(args)
+        try:
+            return _verify(args)
+        except (OSError, ValueError, RuntimeError) as error:
+            print(str(error), file=sys.stderr)
+            return 2
     if args.command == "models":
         return _models()
     if args.command == "serve":

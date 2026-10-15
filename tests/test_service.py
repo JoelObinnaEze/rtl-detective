@@ -38,6 +38,42 @@ def test_uploaded_rtl_fails_closed_when_container_worker_is_unavailable(
     manager.shutdown()
 
 
+def test_uploaded_rtl_is_validated_before_worker_availability(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr("backend.service.docker_available", lambda: False)
+    manager = RunManager(tmp_path)
+
+    with pytest.raises(ValueError, match="module fifo"):
+        manager.submit(CreateRunRequest(source="not SystemVerilog"), None)
+    manager.shutdown()
+
+
+@pytest.mark.parametrize(
+    ("run_request", "expected_parameters"),
+    [
+        (CreateRunRequest(exampleId="case-002"), {"contract_id": "fifo", "data_width": 8, "depth": 3}),
+        (
+            CreateRunRequest(exampleId="arbiter-case-004"),
+            {"contract_id": "arbiter", "requesters": 5},
+        ),
+    ],
+)
+def test_bundled_examples_use_manifest_parameters_when_not_overridden(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    run_request: CreateRunRequest,
+    expected_parameters: dict[str, int | str],
+) -> None:
+    manager = RunManager(tmp_path)
+    monkeypatch.setattr(manager, "_execute", lambda *_args: None)
+
+    run_id = manager.submit(run_request, None)
+
+    assert manager.get_run(run_id)["parameters"] == expected_parameters
+    manager.shutdown()
+
+
 def test_artifact_lookup_rejects_path_traversal(tmp_path: Path) -> None:
     manager = RunManager(tmp_path)
 

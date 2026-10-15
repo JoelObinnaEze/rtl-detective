@@ -20,8 +20,8 @@ TERMINAL_STATES = {"completed", "unresolved", "invalid_input", "cancelled", "inf
 class CreateRunRequest(BaseModel):
     model_config = ConfigDict(extra="forbid", populate_by_name=True)
 
-    example_id: str | None = Field(default=None, alias="exampleId", max_length=64)
-    source: str | None = Field(default=None, max_length=256 * 1024)
+    example_id: str | None = Field(default=None, alias="exampleId", min_length=1, max_length=64)
+    source: str | None = Field(default=None, min_length=1, max_length=256 * 1024)
     contract_id: Literal["fifo", "arbiter"] = Field(default="fifo", alias="contractId")
     data_width: int = Field(default=8, alias="dataWidth", ge=1, le=64)
     depth: int = Field(default=4, ge=1, le=1024)

@@ -59,34 +59,44 @@ class RunManager:
         return examples
 
     def submit(self, request: CreateRunRequest, idempotency_key: str | None) -> str:
-        if request.example_id:
+        data_width = request.data_width
+        depth = request.depth
+        requesters = request.requesters
+        if request.example_id is not None:
             item = next((entry for entry in self._examples if entry["id"] == request.example_id), None)
             if item is None:
                 raise ValueError("unknown exampleId")
             contract_id = str(item.get("contract_id", "fifo"))
             if "contract_id" in request.model_fields_set and request.contract_id != contract_id:
                 raise ValueError("contractId does not match the selected example")
+            if contract_id == "arbiter" and "requesters" not in request.model_fields_set:
+                requesters = int(item["requesters"])
+            elif contract_id == "fifo":
+                if "data_width" not in request.model_fields_set:
+                    data_width = int(item["data_width"])
+                if "depth" not in request.model_fields_set:
+                    depth = int(item["depth"])
             source = (self.benchmark_root / item["source"]).read_text(encoding="utf-8")
             source_kind = "example"
         else:
             contract_id = request.contract_id
-            if not docker_available():
-                raise RuntimeError("uploaded RTL requires the isolated Docker worker, which is unavailable")
             source = request.source or ""
             source_kind = "upload"
         parameters = SimulationParameters(
             contract_id=contract_id,
-            data_width=request.data_width,
-            depth=request.depth,
-            requesters=request.requesters,
+            data_width=data_width,
+            depth=depth,
+            requesters=requesters,
         )
         validate_source(source, contract_id)
+        if source_kind == "upload" and not docker_available():
+            raise RuntimeError("uploaded RTL requires the isolated Docker worker, which is unavailable")
 
         stored_parameters: dict[str, int | str] = {"contract_id": contract_id}
         if contract_id == "arbiter":
-            stored_parameters["requesters"] = request.requesters
+            stored_parameters["requesters"] = requesters
         else:
-            stored_parameters.update({"data_width": request.data_width, "depth": request.depth})
+            stored_parameters.update({"data_width": data_width, "depth": depth})
         request_hash = sha256(
             json.dumps(request.model_dump(by_alias=True), sort_keys=True, separators=(",", ":")).encode()
         ).hexdigest()
