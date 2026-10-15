@@ -33,6 +33,31 @@ def test_provider_is_ready_with_key_and_verified_default_model(
         manager.shutdown()
 
 
+def test_health_reports_default_model_worker_and_queue_readiness(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("NEBIUS_API_KEY", "secret-value")
+    monkeypatch.delenv("NEBIUS_MODEL_ID", raising=False)
+    monkeypatch.setattr("backend.service.docker_available", lambda: False)
+    manager = RunManager(tmp_path)
+    try:
+        health = manager.health()
+
+        assert health == {
+            "status": "ok",
+            "repairReady": True,
+            "provider": {
+                "name": "Nebius Token Factory",
+                "configured": True,
+                "modelId": DEFAULT_MODEL_ID,
+            },
+            "worker": {"uploadsReady": False, "maxPendingRuns": 4},
+        }
+        assert "secret-value" not in json.dumps(health)
+    finally:
+        manager.shutdown()
+
+
 def test_examples_expose_opaque_ids_without_hidden_labels(tmp_path: Path) -> None:
     manager = RunManager(tmp_path)
 

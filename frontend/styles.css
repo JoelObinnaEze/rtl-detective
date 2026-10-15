@@ -149,6 +149,10 @@ h3 { margin: 0; font-size: .88rem; letter-spacing: -.01em; }
 }
 
 .capability-strip span + span::before { content: "/"; margin-right: 1rem; color: #46504b; }
+.runtime-status { margin: 1rem 0 0; overflow-wrap: anywhere; color: var(--muted); font-size: .74rem; line-height: 1.5; }
+.runtime-status::before { content: ""; display: inline-block; width: 6px; height: 6px; margin-right: .5rem; border-radius: 50%; background: currentColor; vertical-align: .08rem; }
+.runtime-status.ready { color: var(--accent); }
+.runtime-status.unavailable { color: var(--warning); }
 
 form { display: grid; gap: 1.5rem; }
 fieldset { display: grid; gap: .65rem; margin: 0; padding: 0; border: 0; }

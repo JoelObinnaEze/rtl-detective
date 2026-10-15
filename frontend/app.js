@@ -14,7 +14,9 @@ const contractRules = document.querySelector("#contract-rules");
 const pipelineContract = document.querySelector("#pipeline-contract");
 const start = document.querySelector("#start");
 const cancel = document.querySelector("#cancel");
+const refresh = document.querySelector("#refresh");
 const formError = document.querySelector("#form-error");
+const runtimeStatus = document.querySelector("#runtime-status");
 const status = document.querySelector("#status");
 const runTitle = document.querySelector("#run-title");
 const runId = document.querySelector("#run-id");
@@ -34,6 +36,7 @@ const artifacts = document.querySelector("#artifacts");
 let activeRun = null;
 let eventStream = null;
 let examples = [];
+const terminalStates = ["completed", "unresolved", "invalid_input", "cancelled", "infrastructure_error"];
 
 const contractDetails = {
   fifo: {
@@ -99,6 +102,19 @@ async function loadExamples() {
   } catch (error) {
     example.replaceChildren(element("option", "Examples unavailable"));
     formError.textContent = error.message;
+  }
+}
+
+async function loadHealth() {
+  try {
+    const health = await api("/api/health");
+    runtimeStatus.className = `runtime-status ${health.repairReady ? "ready" : "unavailable"}`;
+    runtimeStatus.textContent = health.repairReady
+      ? `Repair ready · ${health.provider.modelId}`
+      : "Verification ready · repair unavailable until NEBIUS_API_KEY is set";
+  } catch (error) {
+    runtimeStatus.className = "runtime-status unavailable";
+    runtimeStatus.textContent = `Readiness unavailable · ${error.message}`;
   }
 }
 
@@ -196,26 +212,59 @@ async function loadArtifacts() {
   }
 }
 
-async function finishRun() {
-  const record = await api(`/api/runs/${activeRun}`);
+async function finishRun(record = null) {
+  record ||= await api(`/api/runs/${activeRun}`);
   record.events.forEach(addEvent);
   setStatus(record.status);
   runTitle.textContent = record.verdict ? record.verdict.replaceAll("_", " ") : record.status;
   cancel.hidden = true;
+  refresh.hidden = true;
   start.disabled = false;
   await loadArtifacts();
+}
+
+function handleRunError(error) {
+  formError.textContent = `Run results could not be loaded: ${error.message}`;
+  cancel.hidden = true;
+  refresh.hidden = false;
+  start.disabled = false;
+}
+
+async function recoverRun() {
+  refresh.disabled = true;
+  try {
+    const record = await api(`/api/runs/${activeRun}`);
+    record.events.forEach(addEvent);
+    if (terminalStates.includes(record.status)) {
+      await finishRun(record);
+    } else {
+      setStatus(record.status);
+      formError.textContent = "";
+      refresh.hidden = true;
+      followRun();
+    }
+  } catch (error) {
+    handleRunError(error);
+  } finally {
+    refresh.disabled = false;
+  }
 }
 
 function followRun() {
   eventStream?.close();
   eventStream = new EventSource(`/api/runs/${activeRun}/events`);
-  eventStream.addEventListener("run_event", (message) => addEvent(JSON.parse(message.data)));
-  eventStream.addEventListener("done", async () => {
+  eventStream.addEventListener("run_event", (message) => {
+    addEvent(JSON.parse(message.data));
+    formError.textContent = "";
+    refresh.hidden = true;
+  });
+  eventStream.addEventListener("done", () => {
     eventStream.close();
-    await finishRun();
+    finishRun().catch(handleRunError);
   });
   eventStream.onerror = () => {
-    formError.textContent = "Live updates disconnected; the run can still be retrieved by ID.";
+    formError.textContent = "Live updates disconnected. Refresh this run to recover its latest state.";
+    refresh.hidden = false;
   };
 }
 
@@ -263,6 +312,7 @@ form.addEventListener("submit", async (event) => {
     runId.textContent = activeRun;
     runTitle.textContent = "Verification in progress";
     setStatus("queued");
+    refresh.hidden = true;
     cancel.hidden = false;
     followRun();
   } catch (error) {
@@ -283,6 +333,9 @@ cancel.addEventListener("click", async () => {
   }
 });
 
+refresh.addEventListener("click", recoverRun);
+
 updateContract();
 loadExamples();
+loadHealth();
 

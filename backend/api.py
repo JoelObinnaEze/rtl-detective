@@ -1,19 +1,18 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Callable
 from contextlib import AbstractAsyncContextManager
-import os
 from pathlib import Path
-from typing import Annotated, Callable, Literal, Protocol
+from typing import Annotated, Literal, Protocol
 
 from fastapi import FastAPI, Header, HTTPException, Request
-from fastapi.exceptions import RequestValidationError
 from fastapi.encoders import jsonable_encoder
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.sse import EventSourceResponse, ServerSentEvent
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field, model_validator
-
 
 TERMINAL_STATES = {"completed", "unresolved", "invalid_input", "cancelled", "infrastructure_error"}
 
@@ -29,7 +28,7 @@ class CreateRunRequest(BaseModel):
     requesters: int = Field(default=4, ge=2, le=32)
 
     @model_validator(mode="after")
-    def exactly_one_source(self) -> "CreateRunRequest":
+    def exactly_one_source(self) -> CreateRunRequest:
         if (self.example_id is None) == (self.source is None):
             raise ValueError("provide exactly one of exampleId or source")
         return self
@@ -42,6 +41,7 @@ class Manager(Protocol):
     def examples(self) -> list[dict[str, object]]: ...
     def list_artifacts(self, run_id: str) -> list[dict[str, object]]: ...
     def artifact_path(self, run_id: str, name: str) -> Path: ...
+    def health(self) -> dict[str, object]: ...
 
 
 def _error(status: int, code: str, message: str, details: object | None = None) -> JSONResponse:
@@ -141,15 +141,7 @@ def create_app(
 
     @app.get("/api/health")
     def health() -> dict[str, object]:
-        model_id = os.getenv("NEBIUS_MODEL_ID") or None
-        return {
-            "status": "ok",
-            "provider": {
-                "name": "Nebius Token Factory",
-                "configured": bool(os.getenv("NEBIUS_API_KEY") and model_id),
-                "modelId": model_id,
-            },
-        }
+        return manager.health()
 
     frontend = Path(__file__).parents[1] / "frontend"
     if frontend.exists():

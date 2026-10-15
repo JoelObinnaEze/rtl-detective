@@ -43,6 +43,18 @@ class StubManager:
             raise KeyError(name)
         return self.artifact
 
+    def health(self) -> dict[str, object]:
+        return {
+            "status": "ok",
+            "repairReady": True,
+            "provider": {
+                "name": "Nebius Token Factory",
+                "configured": True,
+                "modelId": "nvidia/example-nemotron",
+            },
+            "worker": {"uploadsReady": False, "maxPendingRuns": 4},
+        }
+
 
 def test_run_api_contract_and_security_headers(tmp_path: Path) -> None:
     artifact = tmp_path / "report.json"
@@ -62,13 +74,9 @@ def test_run_api_contract_and_security_headers(tmp_path: Path) -> None:
     assert client.get("/api/examples").json()[0]["id"] == "case-005"
 
 
-def test_health_reports_provider_readiness_without_exposing_the_key(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_health_reports_provider_readiness_without_exposing_the_key(tmp_path: Path) -> None:
     artifact = tmp_path / "report.json"
     artifact.write_text("{}", encoding="utf-8")
-    monkeypatch.setenv("NEBIUS_API_KEY", "secret-value")
-    monkeypatch.setenv("NEBIUS_MODEL_ID", "nvidia/example-nemotron")
     client = TestClient(create_app(StubManager(artifact)))
 
     response = client.get("/api/health")
@@ -76,11 +84,13 @@ def test_health_reports_provider_readiness_without_exposing_the_key(
     assert response.status_code == 200
     assert response.json() == {
         "status": "ok",
+        "repairReady": True,
         "provider": {
             "name": "Nebius Token Factory",
             "configured": True,
             "modelId": "nvidia/example-nemotron",
         },
+        "worker": {"uploadsReady": False, "maxPendingRuns": 4},
     }
     assert "secret-value" not in response.text
 

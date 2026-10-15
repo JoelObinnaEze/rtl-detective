@@ -64,3 +64,16 @@ def test_frontend_surfaces_the_proof_chain_and_runtime_provider() -> None:
     assert "report?.claim" in script
     assert "locked_assets_unchanged" in script
 
+
+def test_frontend_surfaces_runtime_readiness_and_stream_recovery() -> None:
+    html = (ROOT / "frontend/index.html").read_text(encoding="utf-8")
+    script = (ROOT / "frontend/app.js").read_text(encoding="utf-8")
+
+    assert 'id="runtime-status"' in html
+    assert 'id="refresh"' in html
+    assert "async function loadHealth()" in script
+    assert "health.repairReady" in script
+    assert "async function recoverRun()" in script
+    assert 'refresh.addEventListener("click", recoverRun)' in script
+    assert "finishRun().catch(handleRunError)" in script
+

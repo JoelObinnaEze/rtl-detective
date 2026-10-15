@@ -31,6 +31,7 @@
           <div class="capability-strip" aria-label="Workflow capabilities">
             <span>Simulate</span><span>Diagnose</span><span>Repair</span>
           </div>
+          <p id="runtime-status" class="runtime-status checking" role="status" aria-live="polite">Checking repair readiness…</p>
         </div>
 
         <form id="run-form">
@@ -99,6 +100,7 @@
           </div>
           <div class="run-actions">
             <span id="status" class="status idle">IDLE</span>
+            <button id="refresh" class="secondary" type="button" hidden>Refresh run</button>
             <button id="cancel" class="secondary" type="button" hidden>Cancel</button>
           </div>
         </div>

@@ -15,7 +15,7 @@ from threading import BoundedSemaphore, Lock
 from backend.agent.proof import RunLimits
 from backend.agent.workflow import RepairWorkflow, RunEvent, WorkflowReport
 from backend.api import TERMINAL_STATES, CreateRunRequest
-from backend.providers.nebius import NebiusProvider, ProviderError
+from backend.providers.nebius import DEFAULT_MODEL_ID, NebiusProvider, ProviderError
 from backend.storage import RunStore
 from backend.verification.runner import (
     SimulationParameters,
@@ -87,6 +87,22 @@ class RunManager:
                 public.update({"dataWidth": item["data_width"], "depth": item["depth"]})
             examples.append(public)
         return examples
+
+    def health(self) -> dict[str, object]:
+        configured = bool(os.getenv("NEBIUS_API_KEY"))
+        return {
+            "status": "ok" if configured else "degraded",
+            "repairReady": configured,
+            "provider": {
+                "name": "Nebius Token Factory",
+                "configured": configured,
+                "modelId": os.getenv("NEBIUS_MODEL_ID") or DEFAULT_MODEL_ID,
+            },
+            "worker": {
+                "uploadsReady": docker_available(),
+                "maxPendingRuns": self.max_pending_runs,
+            },
+        }
 
     def submit(self, request: CreateRunRequest, idempotency_key: str | None) -> str:
         data_width = request.data_width
