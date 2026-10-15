@@ -9,6 +9,7 @@ __pycache__/
 artifacts/
 .pytest_cache/
 .test-tmp/
+.test-tmp-*/
 .mypy_cache/
 frontend/.cache/
 graphify-out/

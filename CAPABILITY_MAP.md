@@ -1,6 +1,6 @@
 # Capability Map: Competition-Grade RTL Detective
 
-Status: approved on October 14, 2026. `proof-engine` is implemented and locally verified; live Nebius proof remains pending account access.
+Status: judging packet ready on October 14, 2026. The proof engine, judge workbench, evaluation record, and live Nebius/NVIDIA repair are implemented and verified. Public hosting, repository publication, video upload, and Devpost submission remain external release gates.
 
 ## Decision
 
@@ -16,23 +16,23 @@ Official basis:
 
 | Criterion | Existing strength | Gap to close |
 |---|---|---|
-| Technological implementation | Real Verilator execution, executable oracles, bounded Nemotron loop, isolated uploads, locked regression | The autonomous reasoning and evidence chain are mostly hidden; no live Token Factory run has been recorded |
-| Design | Responsive dark workspace and live event stream | Results stop at a first-mismatch table and raw diff instead of telling the full investigation-to-verification story |
-| Potential impact | Specific FPGA/ASIC debugging problem with two supported RTL contracts | No public repair benchmark, judge fast path, or concrete time/quality comparison |
-| Quality of idea | AI patches are independently verified instead of trusted | The strongest idea—proof-carrying RTL repair—is not named, visualized, or demonstrated as the product thesis |
+| Technological implementation | Real Verilator execution, executable oracles, bounded live Nemotron loop, isolated uploads, locked regression | Public deployment still needs deployment-host verification |
+| Design | Responsive dark workbench, live event stream, explicit provider/model proof, and six visible verification gates | Record the final hosted flow for the submission video |
+| Potential impact | Specific FPGA/ASIC debugging problem, two RTL contracts, ten-case benchmark, and a 54-run offline matrix | Do not generalize measured results beyond the supported contracts |
+| Quality of idea | Named proof-carrying RTL repair: AI proposes while deterministic gates decide | Explain simulation-versus-formal-proof limits clearly in the video |
 
 ## Modules
 
 | Module id | Status | Responsibility | Depends on |
 |---|---|---|---|
 | `proof-engine` | Implemented locally | Produce an auditable repair record: bounded failing reproducer, model hypothesis and diagnosis, candidate diff, provider telemetry, simulator identity, locked-asset integrity, and independent reproducer/regression outcomes | Existing verification core |
-| `judge-workbench` | Next | Rebuild the dark UI around a single narrative: contract → failing cycle → agent investigation → proposed code → verification gates → downloadable proof bundle | `proof-engine` |
-| `evaluation-scorecard` | Planned | Run and publish reproducible baselines for locked tests, investigation, and full repair with raw per-case results, explicit denominators, false-positive counts, attempts, runtime, and model usage | `proof-engine`, live Nebius access for final numbers |
-| `repo-workflow` | Planned | Add a judgeable real-repository path through a documented CLI/CI workflow while retaining the safe canonical contract boundary | `proof-engine` |
-| `submission-kit` | Planned | Provide the hosted-demo runbook, judge quick start, Devpost copy, significant-update disclosure, three-minute script/storyboard, screenshots checklist, and Nebius/NVIDIA feedback template | `judge-workbench`, `evaluation-scorecard`, `repo-workflow` |
-| `live-nebius-proof` | Blocked on account | Discover the account's exact NVIDIA model, run a real Token Factory repair, preserve request/model/latency/token evidence, and replace every placeholder in the scorecard and demo | Builder Program approval, `proof-engine` |
+| `judge-workbench` | Implemented | Present contract → failing cycle → investigation → candidate → verification gates → downloadable proof bundle in the dark UI | `proof-engine` |
+| `evaluation-scorecard` | Implemented | Publish benchmark, matrix, and live-repair outcomes with explicit denominators, usage, cost, hashes, and limitations | `proof-engine`, `live-nebius-proof` |
+| `repo-workflow` | Implemented | Provide CLI/API judge paths and a deployment runbook while retaining the safe canonical contract boundary | `proof-engine` |
+| `submission-kit` | Implemented | Provide Devpost copy, significant-update disclosure, three-minute script, deployment checklist, and Nebius/NVIDIA feedback | `judge-workbench`, `evaluation-scorecard`, `repo-workflow` |
+| `live-nebius-proof` | Implemented | Record a real Token Factory repair with NVIDIA Nemotron 3 Super and preserve model, latency, token, candidate, regression, and integrity evidence | Builder Program approval, `proof-engine` |
 
-Build order: `proof-engine` → `judge-workbench` + `repo-workflow` → `evaluation-scorecard` → `submission-kit`. Run `live-nebius-proof` immediately when credentials arrive, then freeze the measured submission evidence.
+Completed build order: `proof-engine` → `judge-workbench` + `repo-workflow` → `evaluation-scorecard` → `live-nebius-proof` → `submission-kit`.
 
 ## Scope guardrails
 

@@ -29,16 +29,19 @@ On Linux/macOS, activate `.venv/bin/python` instead. Open [http://127.0.0.1:8000
 
 ## Nebius Token Factory
 
-Copy `.env.example` values into your environment; do not commit a real `.env`.
+Copy `.env.example` values into your process or service environment; do not commit a real `.env`. The app deliberately reads process environment variables and does not auto-load `.env` files, while `.env*` is ignored to reduce the chance of committing a key.
 
 ```powershell
 $env:NEBIUS_API_KEY = "..."
 .\.venv\Scripts\python -m backend.cli models
-$env:NEBIUS_MODEL_ID = "<exact NVIDIA/Nemotron ID returned above>"
+$env:NEBIUS_MODEL_ID = "nvidia/nemotron-3-super-120b-a12b"
+$env:NEBIUS_MAX_RETRIES = "0"
+$env:NEBIUS_MAX_OUTPUT_TOKENS = "1536"
+$env:MAX_PATCH_ATTEMPTS = "1"
 .\.venv\Scripts\python -m backend.cli verify --example case-001
 ```
 
-The backend verifies the configured ID against the account’s live `/v1/models` response before inference. Calls use Nebius’ OpenAI-compatible `/v1/chat/completions` endpoint and JSON-schema output. Credentials never enter the browser, simulator container, prompt, logs, or artifacts.
+The backend verifies the configured ID against the account’s live `/v1/models` response before inference. Calls use Nebius’ OpenAI-compatible `/v1/chat/completions` endpoint and strict JSON-schema output. Retries default to zero and one repair attempt is allowed, so a judge run makes at most two model requests: investigation and patch. Credentials never enter the browser, simulator container, prompt, logs, or artifacts.
 
 Official references: [model listing](https://docs.tokenfactory.nebius.com/api-reference/examples/list-of-models), [text generation](https://docs.tokenfactory.nebius.com/api-reference/examples/text-generation), and [structured JSON output](https://docs.tokenfactory.nebius.com/ai-models-inference/json).
 
@@ -59,7 +62,7 @@ The bundled benchmark contains ten opaque cases: four FIFO defects, two correct 
 2. The selected pack supplies a human-authored testbench, directed and seeded-random transactions, an executable oracle, and a locked regression suite.
 3. Verilator 5.050 emits observations and a VCD; the selected oracle records the first cycle-level mismatch.
 4. Only bounded evidence and untrusted DUT text are sent to the configured Nemotron model.
-5. Unified diffs may modify only a candidate `dut.sv`. Check-disabling edits, foreign code, path traversal, symlinks, and oversized inputs are rejected.
+5. Nemotron returns the complete candidate as structured source lines; the host creates the canonical unified diff for `dut.sv`. Check-disabling edits, foreign code, path traversal, symlinks, and oversized inputs are rejected.
 6. Every candidate reruns its proposed reproducer and the locked suite. Oracle, test template, and restriction hashes are compared before and after.
 7. SQLite stores ordered events; per-run directories store reports, source, candidate, traces, and a ZIP bundle.
 
@@ -87,6 +90,7 @@ The command prints the run directory. Open its `report.md` for the narrative pro
 - `POST /api/runs/{id}/cancel` — request cancellation.
 - `GET /api/runs/{id}/artifacts` — downloadable outputs.
 - `GET /api/examples` — opaque bundled examples.
+- `GET /api/health` — service readiness plus non-secret provider/model configuration.
 
 Interactive states are `queued → validating → baseline → investigating → patching → regression → completed`, with `unresolved`, `invalid_input`, `cancelled`, and `infrastructure_error` terminal alternatives.
 
@@ -95,18 +99,20 @@ Interactive states are `queued → validating → baseline → investigating →
 Verified locally on October 14, 2026:
 
 - Python 3.13.7 and Verilator 5.050.
-- The complete 80-test suite, Ruff, Python bytecode compilation, frontend JavaScript syntax, locked dependency integrity, and the known-vulnerability audit pass.
+- The complete test suite, isolated Ruff checks on changed Python files, Python bytecode compilation, frontend JavaScript syntax, locked dependency integrity, and the known-vulnerability audit pass.
 - FIFO and arbiter contract/oracle tests, ten-case real-Verilator benchmark, patch restrictions, provider schema validation, persistence/API/UI contracts, and an end-to-end fake-provider repair with an auditable attempt trail and independent regression.
 - Schema-versioned JSON, Markdown, and ZIP proof artifacts were cross-checked on a real local Verilator run; the reports use artifact-relative paths and write a sanitized fallback record on unexpected orchestrator failure.
 - The published offline matrix passed 18/18 configurations across three recorded seeds per configuration (54 seed/configuration combinations). Raw local output is in `artifacts/evaluation/matrix-results.json`.
 - The pinned `verilator/verilator:v5.050` worker passed an actual Docker simulation with its network, filesystem, privilege, and resource restrictions enabled.
-- No `NEBIUS_API_KEY` was available, so a live Token Factory request and exact account model ID remain unverified.
+- A live `case-001` repair completed through Nebius Token Factory with `nvidia/nemotron-3-super-120b-a12b`: 2 requests, 1,840 prompt tokens, 825 completion tokens, 2,665 total tokens, and an estimated `$0.001295` at the catalog rates observed that day. The model-proposed stimulus was safely replaced by the exact baseline failure prefix when it did not reproduce; the resulting candidate passed both that reproducer and the 80-transaction locked regression while locked assets remained unchanged.
+
+Judge and submission material: [submission copy](SUBMISSION.md), [three-minute demo script](docs/DEMO_SCRIPT.md), [deployment runbook](docs/DEPLOYMENT.md), and [evaluation record](docs/EVALUATION.md).
 
 ## Hackathon checklist
 
 The [official rules](https://nebiusglobalaihackathon.devpost.com/rules) list an October 30, 2026, 10:00 a.m. PDT deadline (11:00 a.m. in Calgary/Edmonton), require a runtime Token Factory or Nebius AI Cloud call using an NVIDIA open-source model, a public open-source repository, a working demo/test build, and a public YouTube demo under three minutes. Judging access must remain free through December 15, 2026.
 
-Before submission: complete and record a real Nebius call, inspect and publish the raw metrics, recheck Docker isolation on the deployment host, publish the repository/demo, record the real UI flow, provide specific Nebius/NVIDIA feedback, and re-check eligibility/current rules. Nothing in this repository submits or purchases anything automatically.
+Before submission: deploy the current commit, publish the repository, record the real UI flow, add both URLs to Devpost, keep judge access available through December 15, and re-check eligibility/current rules. Nothing in this repository submits or purchases anything automatically.
 
 ## Limitations
 
