@@ -131,8 +131,8 @@ class NebiusProvider:
             PatchAction,
             "Return an evidence-linked diagnosis and the complete corrected dut.sv as source_lines. Every array item "
             "must contain exactly one SystemVerilog line, with no embedded newlines, HTML breaks, or Markdown fences. "
-            "Preserve the declared canonical interface and pre-edge acceptance semantics. Do not disable checks or "
-            "add simulator directives.",
+            "Copy the original module header, parameter defaults, and ports byte-for-byte. Preserve pre-edge "
+            "acceptance semantics. Do not disable checks or add simulator directives.",
             source_and_evidence,
         )
 

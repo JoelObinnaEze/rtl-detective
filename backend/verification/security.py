@@ -1,22 +1,23 @@
 from __future__ import annotations
 
-from hashlib import sha256
-from pathlib import Path, PurePosixPath
+import os
 import re
 import shutil
 import subprocess
+from hashlib import sha256
+from pathlib import Path, PurePosixPath
 
 from .packs import get_contract_pack
-
 
 MAX_SOURCE_BYTES = 256 * 1024
 MAX_DIFF_BYTES = 128 * 1024
 FORBIDDEN_SOURCE = re.compile(
     r'\b(?:import|export)\s+["\']DPI|'
     r'\$(?:system|fopen|(?:f?display|f?write|strobe|f?monitor)(?:[boh])?|finish|fatal|stop|readmemh|readmemb)\b',
-    re.I,
+    re.IGNORECASE,
 )
-FORBIDDEN_PATCH = re.compile(r'verilator\s+lint_off|translate_off|\$(?:finish|fatal)\b|`ifdef\s+VERILATOR', re.I)
+FORBIDDEN_PATCH = re.compile(r'verilator\s+lint_off|translate_off|\$(?:finish|fatal)\b|`ifdef\s+VERILATOR', re.IGNORECASE)
+MODULE_HEADER = re.compile(r"\bmodule\s+\w+\b.*?\)\s*;", re.DOTALL)
 LOCKED_ASSETS = (
     "backend/verification/contract.py",
     "backend/verification/cases.py",
@@ -75,17 +76,28 @@ def _validate_diff(diff: str) -> None:
             raise PatchRejected("patch may only modify dut.sv")
 
 
+def _module_header(source: str) -> str:
+    match = MODULE_HEADER.search(source)
+    if not match:
+        raise PatchRejected("source has no complete module header")
+    return match.group(0)
+
+
 def apply_candidate_patch(original: Path, diff: str, workspace: Path, contract_id: str = "fifo") -> Path:
     _validate_diff(diff)
+    original_source = original.read_text(encoding="utf-8")
     workspace.mkdir(parents=True, exist_ok=True)
     candidate = workspace / "dut.sv"
     shutil.copyfile(original, candidate)
     patch_file = workspace / "candidate.diff"
-    patch_file.write_text(diff, encoding="utf-8")
+    patch_file.write_text(diff, encoding="utf-8", newline="\n")
+    apply_env = os.environ.copy()
+    apply_env["GIT_CEILING_DIRECTORIES"] = str(workspace.resolve().parent)
 
     check = subprocess.run(
         ["git", "apply", "--check", "candidate.diff"],
         cwd=workspace,
+        env=apply_env,
         capture_output=True,
         text=True,
         check=False,
@@ -95,13 +107,17 @@ def apply_candidate_patch(original: Path, diff: str, workspace: Path, contract_i
     applied = subprocess.run(
         ["git", "apply", "candidate.diff"],
         cwd=workspace,
+        env=apply_env,
         capture_output=True,
         text=True,
         check=False,
     )
     if applied.returncode != 0:
         raise PatchRejected(f"patch failed: {applied.stderr.strip()}")
-    validate_source(candidate.read_text(encoding="utf-8"), contract_id)
+    candidate_source = candidate.read_text(encoding="utf-8")
+    if _module_header(candidate_source) != _module_header(original_source):
+        raise PatchRejected("patch may not modify the module header")
+    validate_source(candidate_source, contract_id)
     return candidate
 
 

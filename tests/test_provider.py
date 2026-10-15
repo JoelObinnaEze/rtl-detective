@@ -128,6 +128,7 @@ def test_patch_prompt_requires_canonical_dut_source_lines() -> None:
         system = body["messages"][0]["content"]
         assert "complete corrected dut.sv as source_lines" in system
         assert "exactly one SystemVerilog line" in system
+        assert "module header, parameter defaults, and ports byte-for-byte" in system
         return httpx.Response(
             200,
             json={

@@ -1,3 +1,4 @@
+import difflib
 from pathlib import Path
 
 import pytest
@@ -8,7 +9,6 @@ from backend.verification.security import (
     hash_locked_assets,
     validate_source,
 )
-
 
 ROOT = Path(__file__).parents[1]
 SOURCE = ROOT / "benchmark/designs/buggy/simultaneous_count.sv"
@@ -67,6 +67,41 @@ def test_patch_rejects_attempt_to_disable_checks(tmp_path: Path) -> None:
 
     with pytest.raises(PatchRejected, match="disable"):
         apply_candidate_patch(SOURCE, diff, tmp_path)
+
+
+def test_patch_rejects_module_header_changes(tmp_path: Path) -> None:
+    diff = """diff --git a/dut.sv b/dut.sv
+--- a/dut.sv
++++ b/dut.sv
+@@ -1,6 +1,6 @@
+ module fifo #(
+   parameter int DATA_WIDTH = 8,
+-  parameter int DEPTH = 4,
++  parameter int DEPTH = 3,
+   localparam int PTR_WIDTH = (DEPTH <= 1) ? 1 : $clog2(DEPTH),
+   localparam int COUNT_WIDTH = (DEPTH <= 1) ? 1 : $clog2(DEPTH + 1)
+ ) (
+"""
+
+    with pytest.raises(PatchRejected, match="module header"):
+        apply_candidate_patch(SOURCE, diff, tmp_path)
+
+
+def test_patch_applies_to_candidate_inside_parent_repository(tmp_path: Path) -> None:
+    source = SOURCE.read_text(encoding="utf-8")
+    fixed = source.replace("count <= count + 1'b1;", "count <= count + 2'b01;", 1)
+    diff = "".join(
+        difflib.unified_diff(
+            source.splitlines(keepends=True),
+            fixed.splitlines(keepends=True),
+            fromfile="a/dut.sv",
+            tofile="b/dut.sv",
+        )
+    )
+
+    candidate = apply_candidate_patch(SOURCE, diff, tmp_path)
+
+    assert "count <= count + 2'b01;" in candidate.read_text(encoding="utf-8")
 
 
 def test_locked_asset_hashes_are_stable_and_include_oracle() -> None:

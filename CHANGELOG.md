@@ -24,4 +24,6 @@
 - Resolve contract-aware CLI defaults, apply bundled manifest parameters when omitted, reject empty source selectors, and block DUT simulation I/O or control tasks from corrupting evidence.
 - Encode untrusted provider metadata in Markdown reports, redact provider exception details from persisted evidence, and update pytest to 9.0.3 for the temporary-directory security fix.
 - Replay the exact baseline transaction prefix when model-proposed stimulus passes without reproducing the known failure, preserving an honest trace instead of requesting another model response.
+- Reject candidate patches that alter the original module header, including parameter defaults and ports.
+- Force candidate diffs to apply within their isolated workspace instead of inheriting a parent Git worktree, preventing a successful no-op on nested artifact paths.
 

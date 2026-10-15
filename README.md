@@ -62,7 +62,7 @@ The bundled benchmark contains ten opaque cases: four FIFO defects, two correct 
 2. The selected pack supplies a human-authored testbench, directed and seeded-random transactions, an executable oracle, and a locked regression suite.
 3. Verilator 5.050 emits observations and a VCD; the selected oracle records the first cycle-level mismatch.
 4. Only bounded evidence and untrusted DUT text are sent to the configured Nemotron model.
-5. Nemotron returns the complete candidate as structured source lines; the host creates the canonical unified diff for `dut.sv`. Check-disabling edits, foreign code, path traversal, symlinks, and oversized inputs are rejected.
+5. Nemotron returns the complete candidate as structured source lines; the host creates the canonical unified diff for `dut.sv`. Module-header edits, check-disabling edits, foreign code, path traversal, symlinks, and oversized inputs are rejected.
 6. Every candidate reruns its proposed reproducer and the locked suite. Oracle, test template, and restriction hashes are compared before and after.
 7. SQLite stores ordered events; per-run directories store reports, source, candidate, traces, and a ZIP bundle.
 

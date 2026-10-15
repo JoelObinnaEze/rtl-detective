@@ -42,6 +42,7 @@ Reproduce locally:
 ## Interpretation and limits
 
 - The successful live run demonstrates one end-to-end repair, not a repair-rate benchmark.
+- Artifact review found that the live candidate unnecessarily changed the module's default `DEPTH` while the harness explicitly instantiated `DEPTH=3`. The saved report remains immutable and its claim remains limited to the listed tests; the current build now rejects any candidate that changes the module header, parameter defaults, or ports.
 - Expected benchmark labels are not included in model prompts.
 - The full regression is independent of the model-generated investigation stimulus.
 - When that stimulus did not reproduce the already-observed failure, the workflow replayed the exact baseline transaction prefix and recorded the fallback in the event trail; it did not spend another model request.
