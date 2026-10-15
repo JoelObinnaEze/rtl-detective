@@ -9,8 +9,6 @@ import shutil
 import subprocess
 from uuid import uuid4
 
-from .fifo import FifoFailure as Failure
-from .fifo import FifoObservation as Observation
 from .packs import get_contract_pack
 
 

@@ -3,7 +3,6 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, field
 from hashlib import sha256
 from pathlib import Path
-import shutil
 from typing import Callable, Protocol
 
 from backend.providers.nebius import InvestigationAction, ModelReply, PatchAction, ProviderError
