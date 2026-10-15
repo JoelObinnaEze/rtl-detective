@@ -3,7 +3,13 @@ import json
 import httpx
 import pytest
 
-from backend.providers.nebius import InvestigationAction, NebiusProvider, ProviderError, TransactionAction
+from backend.providers.nebius import (
+    InvestigationAction,
+    NebiusProvider,
+    PatchAction,
+    ProviderError,
+    TransactionAction,
+)
 
 
 def test_discovers_only_available_nvidia_models() -> None:
@@ -114,6 +120,44 @@ def test_investigation_transaction_can_describe_an_arbiter_request() -> None:
     action = TransactionAction(rst=False, request=0b101)
 
     assert action.request == 0b101
+
+
+def test_patch_prompt_requires_canonical_dut_source_lines() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.content)
+        system = body["messages"][0]["content"]
+        assert "complete corrected dut.sv as source_lines" in system
+        assert "exactly one SystemVerilog line" in system
+        return httpx.Response(
+            200,
+            json={
+                "model": "nvidia/example-nemotron",
+                "choices": [
+                    {
+                        "message": {
+                            "content": json.dumps(
+                                {
+                                    "diagnosis": "The count assignments conflict.",
+                                    "source_lines": ["module fifo;", "endmodule"],
+                                }
+                            )
+                        }
+                    }
+                ],
+            },
+        )
+
+    provider = NebiusProvider(
+        api_key="test-key",
+        model_id="nvidia/example-nemotron",
+        client=httpx.Client(transport=httpx.MockTransport(handler), base_url="https://api.tokenfactory.nebius.com/v1/"),
+        retries=0,
+    )
+
+    patch = provider.propose_patch("bounded evidence").value
+
+    assert isinstance(patch, PatchAction)
+    assert patch.source_lines == ["module fifo;", "endmodule"]
 
 
 def test_from_env_applies_the_live_request_budget(monkeypatch: pytest.MonkeyPatch) -> None:

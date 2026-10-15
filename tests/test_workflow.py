@@ -1,5 +1,4 @@
 from dataclasses import dataclass
-import difflib
 from pathlib import Path
 
 from backend.agent.workflow import RepairWorkflow
@@ -10,10 +9,9 @@ from backend.providers.nebius import (
     ProviderError,
     TransactionAction,
 )
-from backend.verification.fifo import FifoFailure
 from backend.verification.contract import Transaction
+from backend.verification.fifo import FifoFailure
 from backend.verification.runner import SimulationOutcome, SimulationParameters
-
 
 ROOT = Path(__file__).parents[1]
 
@@ -32,6 +30,7 @@ class FakeProvider:
         assert "observed" in evidence
         assert "Executed transaction prefix through the first failure" in evidence
         assert '"wr_en":true' in evidence
+        assert "The only editable file is dut.sv" in evidence
         action = InvestigationAction(
             hypothesis="Both count assignments execute; the read assignment wins.",
             evidence_cycles=[6],
@@ -57,15 +56,10 @@ class FakeProvider:
             "        default: count <= count;\n"
             "      endcase\n",
         )
-        diff = "".join(
-            difflib.unified_diff(
-                self.source.splitlines(keepends=True),
-                fixed.splitlines(keepends=True),
-                fromfile="a/dut.sv",
-                tofile="b/dut.sv",
-            )
+        action = PatchAction(
+            diagnosis="The two nonblocking count assignments conflict.",
+            source_lines=fixed.splitlines(),
         )
-        action = PatchAction(diagnosis="The two nonblocking count assignments conflict.", diff=diff)
         return ModelReply(action, "fake", "fake/nemotron", 1, {"total_tokens": 1}, "patch-1")
 
 
@@ -74,7 +68,7 @@ class RejectingPatchProvider(FakeProvider):
         self.patch_calls += 1
         action = PatchAction(
             diagnosis="The model attempted to edit a locked testbench.",
-            diff="diff --git a/tb.sv b/tb.sv\n--- a/tb.sv\n+++ b/tb.sv\n@@ -1 +1 @@\n-old\n+new\n",
+            source_lines=(self.source + "\ninitial $finish;\n").splitlines(),
         )
         return ModelReply(action, "fake", "fake/nemotron", 2, {"total_tokens": 2}, "patch-rejected")
 
@@ -173,6 +167,30 @@ def test_reproduced_bug_is_patched_and_independently_retested(tmp_path: Path) ->
     assert serialized["claim"] == "Candidate passed the reproducer and listed locked regression tests."
 
 
+def test_nonreproducing_model_stimulus_falls_back_to_the_baseline_prefix(tmp_path: Path) -> None:
+    source_path = ROOT / "benchmark/designs/buggy/simultaneous_count.sv"
+    provider = FakeProvider(source_path.read_text(encoding="utf-8"))
+    parameters = SimulationParameters(data_width=8, depth=3)
+    outcomes = iter(
+        [mismatch(parameters), passed(parameters), mismatch(parameters), passed(parameters), passed(parameters)]
+    )
+
+    report = RepairWorkflow(
+        provider=provider,
+        max_patch_attempts=1,
+        simulation_runner=lambda *_args: next(outcomes),
+    ).run(source_path, parameters, tmp_path)
+
+    attempt = report.to_dict()["attempts"][0]
+    assert report.verdict == "candidate_passed_listed_tests"
+    assert attempt["investigation"]["outcome"]["status"] == "functional_mismatch"
+    assert attempt["investigation"]["outcome"]["transaction_count"] == 4
+    assert attempt["investigation"]["outcome"]["trace_artifact"].endswith(
+        "investigation-baseline/trace.vcd"
+    )
+    assert any("baseline transaction prefix" in event.message for event in report.events)
+
+
 def test_rejected_patch_keeps_investigation_evidence_without_a_candidate_claim(tmp_path: Path) -> None:
     source_path = ROOT / "benchmark/designs/buggy/simultaneous_count.sv"
     provider = RejectingPatchProvider(source_path.read_text(encoding="utf-8"))
@@ -187,7 +205,7 @@ def test_rejected_patch_keeps_investigation_evidence_without_a_candidate_claim(t
     attempt = report.to_dict()["attempts"][0]
     assert attempt["investigation"]["outcome"]["status"] == "functional_mismatch"
     assert attempt["candidate"]["source_sha256"] is None
-    assert "dut.sv" in attempt["candidate"]["rejection_reason"]
+    assert "terminate the testbench" in attempt["candidate"]["rejection_reason"]
     assert attempt["verification"] is None
     assert report.claim == "Failure reproduced; repair not verified."
 
@@ -237,7 +255,14 @@ def test_later_attempt_preserves_non_reproducing_investigation(tmp_path: Path) -
     provider = FakeProvider(source_path.read_text(encoding="utf-8"))
     parameters = SimulationParameters(data_width=8, depth=3)
     outcomes = iter(
-        [mismatch(parameters), passed(parameters), mismatch(parameters), passed(parameters), passed(parameters)]
+        [
+            mismatch(parameters),
+            passed(parameters),
+            passed(parameters),
+            mismatch(parameters),
+            passed(parameters),
+            passed(parameters),
+        ]
     )
 
     report = RepairWorkflow(
@@ -259,7 +284,7 @@ def test_cancellation_keeps_prior_attempt_evidence(tmp_path: Path) -> None:
     provider = FakeProvider(source_path.read_text(encoding="utf-8"))
     parameters = SimulationParameters(data_width=8, depth=3)
     cancellation_checks = iter([False, False, True])
-    outcomes = iter([mismatch(parameters), passed(parameters)])
+    outcomes = iter([mismatch(parameters), passed(parameters), passed(parameters)])
 
     report = RepairWorkflow(
         provider=provider,

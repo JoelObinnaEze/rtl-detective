@@ -1,15 +1,14 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 import json
 import os
 import time
+from dataclasses import dataclass
 from typing import Generic, TypeVar
 from urllib.parse import urlparse
 
 import httpx
 from pydantic import BaseModel, Field, ValidationError
-
 
 DEFAULT_BASE_URL = "https://api.tokenfactory.nebius.com/v1/"
 
@@ -34,7 +33,7 @@ class InvestigationAction(BaseModel):
 
 class PatchAction(BaseModel):
     diagnosis: str = Field(min_length=1, max_length=4000)
-    diff: str = Field(min_length=1, max_length=131072)
+    source_lines: list[str] = Field(min_length=1, max_length=2048)
 
 
 T = TypeVar("T", bound=BaseModel)
@@ -82,7 +81,7 @@ class NebiusProvider:
         )
 
     @classmethod
-    def from_env(cls) -> "NebiusProvider":
+    def from_env(cls) -> NebiusProvider:
         try:
             retries = int(os.getenv("NEBIUS_MAX_RETRIES", "0"))
             max_tokens = int(os.getenv("NEBIUS_MAX_OUTPUT_TOKENS", "1024"))
@@ -130,8 +129,10 @@ class NebiusProvider:
     def propose_patch(self, source_and_evidence: str) -> ModelReply[PatchAction]:
         return self._complete(
             PatchAction,
-            "Return an evidence-linked diagnosis and one unified diff for dut.sv only. Preserve the declared canonical "
-            "interface. Do not disable checks, add simulator directives, or modify tests.",
+            "Return an evidence-linked diagnosis and the complete corrected dut.sv as source_lines. Every array item "
+            "must contain exactly one SystemVerilog line, with no embedded newlines, HTML breaks, or Markdown fences. "
+            "Preserve the declared canonical interface and pre-edge acceptance semantics. Do not disable checks or "
+            "add simulator directives.",
             source_and_evidence,
         )
 

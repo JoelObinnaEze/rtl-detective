@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import difflib
 import json
+from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
 from hashlib import sha256
 from pathlib import Path
-from typing import Callable, Protocol
+from typing import Protocol
 
 from backend.agent.proof import (
     CandidateProof,
@@ -17,7 +19,12 @@ from backend.agent.proof import (
     record_transactions,
     summarize_outcome,
 )
-from backend.providers.nebius import InvestigationAction, ModelReply, PatchAction, ProviderError
+from backend.providers.nebius import (
+    InvestigationAction,
+    ModelReply,
+    PatchAction,
+    ProviderError,
+)
 from backend.verification.packs import ContractPack, get_contract_pack
 from backend.verification.runner import (
     SimulationOutcome,
@@ -25,7 +32,12 @@ from backend.verification.runner import (
     outcome_to_dict,
     run_local_simulation,
 )
-from backend.verification.security import PatchRejected, apply_candidate_patch, hash_locked_assets, validate_source
+from backend.verification.security import (
+    PatchRejected,
+    apply_candidate_patch,
+    hash_locked_assets,
+    validate_source,
+)
 
 
 class Provider(Protocol):
@@ -113,6 +125,7 @@ def _evidence(
             "Executed transaction prefix through the first failure: "
             + (json.dumps(prefix, separators=(",", ":")) if prefix else "unavailable"),
             f"Additional result: {note}",
+            "The only editable file is dut.sv.",
             "Untrusted DUT source follows:",
             source[:24_000],
         ]
@@ -239,6 +252,20 @@ class RepairWorkflow:
                 workspace / f"attempt-{number}" / "investigation",
                 self.simulation_timeout_seconds,
             )
+            investigation_artifact = "investigation"
+            if investigation_outcome.status == "passed" and baseline.failures:
+                baseline_prefix = transactions[: baseline.failures[0].cycle + 1]
+                if targeted != baseline_prefix:
+                    emit("investigating", "Model stimulus did not reproduce; replaying baseline transaction prefix")
+                    targeted = baseline_prefix
+                    investigation_artifact = "investigation-baseline"
+                    investigation_outcome = self.simulation_runner(
+                        original,
+                        targeted,
+                        parameters,
+                        workspace / f"attempt-{number}" / investigation_artifact,
+                        self.simulation_timeout_seconds,
+                    )
             investigation_record = _provider_record(investigation)
             investigation_proof = InvestigationProof(
                 hypothesis=investigation.value.hypothesis,
@@ -247,7 +274,7 @@ class RepairWorkflow:
                 outcome=summarize_outcome(
                     investigation_outcome,
                     transaction_count=len(targeted),
-                    trace_artifact=f"work/attempt-{number}/investigation/trace.vcd"
+                    trace_artifact=f"work/attempt-{number}/{investigation_artifact}/trace.vcd"
                     if investigation_outcome.trace_path
                     else None,
                 ),
@@ -305,15 +332,24 @@ class RepairWorkflow:
             patch_record = _provider_record(patch_reply)
             records.append(patch_record)
             candidate_dir = workspace / f"attempt-{number}" / "candidate"
+            candidate_source = "\n".join(patch_reply.value.source_lines) + "\n"
+            candidate_diff = "".join(
+                difflib.unified_diff(
+                    source.splitlines(keepends=True),
+                    candidate_source.splitlines(keepends=True),
+                    fromfile="a/dut.sv",
+                    tofile="b/dut.sv",
+                )
+            )
             try:
-                candidate = apply_candidate_patch(original, patch_reply.value.diff, candidate_dir, pack.id)
+                candidate = apply_candidate_patch(original, candidate_diff, candidate_dir, pack.id)
             except PatchRejected as error:
                 attempts.append(
                     AttemptReport(
                         attempt=number,
                         hypothesis=investigation.value.hypothesis,
                         diagnosis=patch_reply.value.diagnosis,
-                        diff=patch_reply.value.diff,
+                        diff=candidate_diff,
                         investigation_status=investigation_outcome.status,
                         reproducer_status="patch_rejected",
                         regression_status=None,
@@ -321,7 +357,7 @@ class RepairWorkflow:
                         investigation=investigation_proof,
                         candidate=CandidateProof(
                             diagnosis=patch_reply.value.diagnosis,
-                            diff=patch_reply.value.diff,
+                            diff=candidate_diff,
                             source_sha256=None,
                             rejection_reason=str(error),
                             provider_request=patch_record,
@@ -351,7 +387,7 @@ class RepairWorkflow:
                     attempt=number,
                     hypothesis=investigation.value.hypothesis,
                     diagnosis=patch_reply.value.diagnosis,
-                    diff=patch_reply.value.diff,
+                    diff=candidate_diff,
                     investigation_status=investigation_outcome.status,
                     reproducer_status=reproducer.status,
                     regression_status=regression.status,
@@ -359,7 +395,7 @@ class RepairWorkflow:
                     investigation=investigation_proof,
                     candidate=CandidateProof(
                         diagnosis=patch_reply.value.diagnosis,
-                        diff=patch_reply.value.diff,
+                        diff=candidate_diff,
                         source_sha256=sha256(candidate.read_bytes()).hexdigest(),
                         rejection_reason=None,
                         provider_request=patch_record,
