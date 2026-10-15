@@ -38,10 +38,11 @@ $env:NEBIUS_MODEL_ID = "nvidia/nemotron-3-super-120b-a12b"
 $env:NEBIUS_MAX_RETRIES = "0"
 $env:NEBIUS_MAX_OUTPUT_TOKENS = "1536"
 $env:MAX_PATCH_ATTEMPTS = "1"
+$env:MAX_PENDING_RUNS = "4"
 .\.venv\Scripts\python -m backend.cli verify --example case-001
 ```
 
-The backend verifies the configured ID against the account’s live `/v1/models` response before inference. Calls use Nebius’ OpenAI-compatible `/v1/chat/completions` endpoint and strict JSON-schema output. Retries default to zero and one repair attempt is allowed, so a judge run makes at most two model requests: investigation and patch. Credentials never enter the browser, simulator container, prompt, logs, or artifacts.
+If `NEBIUS_MODEL_ID` is omitted, the app uses the verified `nvidia/nemotron-3-super-120b-a12b` default; override it after running `rtl-detective models` if the catalog changes. The backend verifies the selected ID against the account’s live `/v1/models` response before inference. Calls use Nebius’ OpenAI-compatible `/v1/chat/completions` endpoint and strict JSON-schema output. Retries default to zero and one repair attempt is allowed, so a judge run makes at most two model requests: investigation and patch. Credentials never enter the browser, simulator container, prompt, logs, or artifacts.
 
 Official references: [model listing](https://docs.tokenfactory.nebius.com/api-reference/examples/list-of-models), [text generation](https://docs.tokenfactory.nebius.com/api-reference/examples/text-generation), and [structured JSON output](https://docs.tokenfactory.nebius.com/ai-models-inference/json).
 
@@ -93,6 +94,8 @@ The command prints the run directory. Open its `report.md` for the narrative pro
 - `GET /api/health` — service readiness plus non-secret provider/model configuration.
 
 Interactive states are `queued → validating → baseline → investigating → patching → regression → completed`, with `unresolved`, `invalid_input`, `cancelled`, and `infrastructure_error` terminal alternatives.
+
+The service accepts at most `MAX_PENDING_RUNS` active or queued runs (four by default) and returns `503` when that bounded queue is full. On restart, previously nonterminal runs are closed as `infrastructure_error` with a portable interruption report instead of leaving clients waiting forever. This is an in-process guard for the documented single-instance deployment; keep an edge rate limit in front of the public endpoint.
 
 ## Current verification status
 

@@ -16,6 +16,7 @@
 - Generalized the verification, repair, report, and artifact workflow while keeping the FIFO API and CLI defaults backward compatible.
 - Made successful repair claims depend on passing the replayed reproducer, the full locked regression suite, and locked-asset integrity rather than model output.
 - Capped live inference at one repair attempt with zero provider retries by default, disabled Nemotron reasoning tokens for schema-only calls, and made Nemotron return structured source lines while the host generates the canonical diff.
+- Added a verified default Nemotron model, bounded the in-process run queue, and exposed non-secret provider, upload-worker, and queue readiness to the judge UI.
 
 ### Fixed
 
@@ -26,4 +27,6 @@
 - Replay the exact baseline transaction prefix when model-proposed stimulus passes without reproducing the known failure, preserving an honest trace instead of requesting another model response.
 - Reject candidate patches that alter the original module header, including parameter defaults and ports.
 - Force candidate diffs to apply within their isolated workspace instead of inheriting a parent Git worktree, preventing a successful no-op on nested artifact paths.
+- Reject lookalike Nebius hostnames before attaching credentials, validate worker limits at startup, log orchestrator failures, and close interrupted runs with terminal proof after a restart.
+- Recover the browser from event-stream or final-result fetch failures with an explicit refresh action instead of leaving controls stuck.
 

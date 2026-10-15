@@ -30,6 +30,7 @@ NEBIUS_MAX_RETRIES=0
 NEBIUS_MAX_OUTPUT_TOKENS=1536
 MAX_PATCH_ATTEMPTS=1
 SIMULATION_TIMEOUT_SECONDS=30
+MAX_PENDING_RUNS=4
 ARTIFACTS_DIRECTORY=/srv/rtl-detective/artifacts
 ```
 
@@ -39,11 +40,13 @@ Start the app on loopback and terminate TLS at the reverse proxy:
 .venv/bin/python -m backend.cli serve --host 127.0.0.1 --port 8000
 ```
 
-Proxy the public origin to `127.0.0.1:8000`, preserving streaming responses. Apply an edge request limit to `POST /api/runs`; the app intentionally has no multi-tenant account system. Keep the process at one instance because run state and SQLite artifacts are local.
+Proxy the public origin to `127.0.0.1:8000`, preserving streaming responses. Apply an edge request and body-size limit to `POST /api/runs`; the app intentionally has no multi-tenant account system. Its in-process queue rejects work beyond `MAX_PENDING_RUNS`, but that is not a distributed rate limiter. Keep the process at one instance because run state and SQLite artifacts are local.
+
+For Nginx, define `limit_req_zone $binary_remote_addr zone=rtl_runs:10m rate=2r/m;` in the `http` block, then apply `limit_req zone=rtl_runs burst=1 nodelay;` and `client_max_body_size 300k;` in the exact `location = /api/runs` block. Disable proxy buffering for `/api/runs/` so server-sent events reach the browser immediately.
 
 ## Acceptance checks
 
-1. `GET https://<PUBLIC_HOST>/api/health` returns `status: ok`, `configured: true`, and `nvidia/nemotron-3-super-120b-a12b`. It must never return the API key.
+1. `GET https://<PUBLIC_HOST>/api/health` returns `status: ok`, `repairReady: true`, `configured: true`, `maxPendingRuns: 4`, and `nvidia/nemotron-3-super-120b-a12b`. It must never return the API key.
 2. Run `case-005`; it should pass the baseline without an AI call.
 3. Run `case-001` once; it should show the Nebius/NVIDIA provider proof and either a verified candidate or honest unresolved evidence.
 4. Download `report.md`, `report.json`, and `artifact-bundle.zip` from the completed run.
@@ -54,12 +57,12 @@ Proxy the public origin to `127.0.0.1:8000`, preserving streaming responses. App
 
 - The default repair uses at most one investigation request and one patch request, with no provider retries.
 - Correct examples make no model request.
-- Rate-limit new runs at the reverse proxy and monitor Token Factory usage during judging.
+- The app admits at most four active or queued runs by default; rate-limit new runs at the reverse proxy and monitor Token Factory usage during judging.
 - Keep only the required judge window online. The official rules require free access through December 15, 2026; do not disable the demo earlier.
 - Rotate the API key immediately if it appears in logs, a recording, or repository history.
 
 ## Operations and rollback
 
-- Monitor `/api/health`, process restarts, disk use under `artifacts/`, Docker failures, and Token Factory spend.
+- Monitor `/api/health`, queue-full responses, process restarts, disk use under `artifacts/`, Docker failures, and Token Factory spend. Restart recovery marks any abandoned nonterminal run as interrupted and writes a failure proof bundle.
 - Back up any proof bundle you plan to cite before pruning old run directories.
 - Deploy by immutable Git commit. Roll back by checking out the previous verified commit and restarting the service; do not reuse partially written run directories.
