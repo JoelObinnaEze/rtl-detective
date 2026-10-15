@@ -118,7 +118,7 @@ def run_local_simulation(
         "--Mdir",
         "obj_dir",
         "-j",
-        "0",
+        "1",
         "--Wno-fatal",
         "dut.sv",
         "tb.sv",
@@ -273,7 +273,7 @@ def run_container_simulation(
         version_result = _docker_script(workspace, "verilator --version", 30)
         compiled = _docker_script(
             workspace,
-            "verilator --binary --timing --trace --top-module tb --Mdir obj_dir -j 0 "
+            "verilator --binary --timing --trace --top-module tb --Mdir obj_dir -j 1 "
             "--Wno-fatal dut.sv tb.sv -o sim",
             timeout_seconds,
         )
