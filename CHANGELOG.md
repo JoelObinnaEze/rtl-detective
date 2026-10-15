@@ -29,4 +29,5 @@
 - Force candidate diffs to apply within their isolated workspace instead of inheriting a parent Git worktree, preventing a successful no-op on nested artifact paths.
 - Reject lookalike Nebius hostnames before attaching credentials, validate worker limits at startup, log orchestrator failures, and close interrupted runs with terminal proof after a restart.
 - Recover the browser from event-stream or final-result fetch failures with an explicit refresh action instead of leaving controls stuck.
+- Use Starlette's supported `httpx2` test transport, removing the deprecated fallback warning from the judge test suite.
 

@@ -17,7 +17,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-test = ["pytest==9.0.3"]
+test = ["httpx2==2.13.1", "pytest==9.0.3"]
 
 [project.scripts]
 rtl-detective = "backend.cli:main"
