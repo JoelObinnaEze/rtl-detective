@@ -88,7 +88,7 @@ Verified locally on October 14, 2026:
 
 ## Hackathon checklist
 
-The [official rules](https://nebiusglobalaihackathon.devpost.com/rules) list an October 30, 2026, 10:00 a.m. PDT deadline (noon in Calgary/Edmonton), require a runtime Token Factory or Nebius AI Cloud call using an NVIDIA open-source model, a public open-source repository, a working demo/test build, and a public YouTube demo under three minutes. Judging access must remain free through December 15, 2026.
+The [official rules](https://nebiusglobalaihackathon.devpost.com/rules) list an October 30, 2026, 10:00 a.m. PDT deadline (11:00 a.m. in Calgary/Edmonton), require a runtime Token Factory or Nebius AI Cloud call using an NVIDIA open-source model, a public open-source repository, a working demo/test build, and a public YouTube demo under three minutes. Judging access must remain free through December 15, 2026.
 
 Before submission: complete and record a real Nebius call, inspect and publish the raw metrics, recheck Docker isolation on the deployment host, publish the repository/demo, record the real UI flow, provide specific Nebius/NVIDIA feedback, and re-check eligibility/current rules. Nothing in this repository submits or purchases anything automatically.
 
