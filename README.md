@@ -103,22 +103,6 @@ Interactive states are `queued → validating → baseline → investigating →
 
 The service accepts at most `MAX_PENDING_RUNS` active or queued runs (four by default) and returns `503` when that bounded queue is full. On restart, previously nonterminal runs are closed as `infrastructure_error` with a portable interruption report instead of leaving clients waiting forever. This is an in-process guard for the documented single-instance deployment; keep an edge rate limit in front of the public endpoint.
 
-## Current verification status
-
-Verified locally on October 14, 2026:
-
-- Python 3.13.7 and Verilator 5.050.
-- The complete test suite, isolated Ruff checks on changed Python files, Python bytecode compilation, frontend JavaScript syntax, locked dependency integrity, and the known-vulnerability audit pass.
-- FIFO and arbiter contract/oracle tests, ten-case real-Verilator benchmark, patch restrictions, provider schema validation, persistence/API/UI contracts, and an end-to-end fake-provider repair with an auditable attempt trail and independent regression.
-- Schema-versioned JSON, Markdown, and ZIP proof artifacts were cross-checked on a real local Verilator run; the reports use artifact-relative paths and write a sanitized fallback record on unexpected orchestrator failure.
-- The published offline matrix passed 18/18 configurations across three recorded seeds per configuration (54 seed/configuration combinations). Raw local output is in `artifacts/evaluation/matrix-results.json`.
-- The pinned `verilator/verilator:v5.050` worker passed an actual Docker simulation with its network, filesystem, privilege, and resource restrictions enabled.
-- A live `case-001` repair completed through Nebius Token Factory with `nvidia/nemotron-3-super-120b-a12b`: 2 requests, 1,789 prompt tokens, 683 completion tokens, and 2,472 total tokens. The model-proposed stimulus was safely replaced by the exact baseline failure prefix when it did not reproduce; the locked module header was restored before verification, and the resulting candidate passed both that reproducer and the 80-transaction locked regression while locked assets remained unchanged.
-- An October 15 hardening confirmation reached the same live provider/model with two recorded request IDs and 2,492 total tokens. It correctly refused to claim a repair when the model specialized a locked parameter default; that result led to deterministic host-side header restoration before canonical diff generation, covered by offline regression tests without another paid call.
-- The public Render deployment of commit `486061e` reports the configured Nebius/NVIDIA model and completed hosted `case-005` under its 512 MB free-tier limit with `no_failure_found_in_tested_cases`; that fixture makes no model request.
-
-Judge and submission material: [submission copy](SUBMISSION.md), [three-minute demo script](docs/DEMO_SCRIPT.md), [recording-ready voice lines](docs/VOICE_LINES.md), [deployment runbook](docs/DEPLOYMENT.md), and [evaluation record](docs/EVALUATION.md). The included `Dockerfile` and `render.yaml` deploy the bundled-example demo on Render's free tier with the Nebius key supplied as a host secret.
-
 ## Limitations
 
 - No arbitrary RTL interfaces, asynchronous FIFO, CDC, metastability, UVM, vendor build systems/IP, synthesis, place-and-route, timing closure, or board programming.
