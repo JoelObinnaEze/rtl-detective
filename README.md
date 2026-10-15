@@ -1,113 +1,176 @@
 # RTL Detective
 
-![RTL Detective](docs/assets/rtl-detective-thumbnail.png)
+### Proof-carrying SystemVerilog repair with NVIDIA Nemotron and Verilator
 
-RTL Detective is an evidence-first agent for canonical, single-clock SystemVerilog blocks. It compiles the DUT with Verilator, compares every sampled cycle with the selected contract pack's executable oracle, asks an NVIDIA/Nemotron model through Nebius Token Factory for a bounded investigation and candidate diff, then independently reruns the reproducer and locked tests.
+[![CI](https://github.com/JoelObinnaEze/rtl-detective/actions/workflows/ci.yml/badge.svg)](https://github.com/JoelObinnaEze/rtl-detective/actions/workflows/ci.yml)
+[![License: Apache-2.0](https://img.shields.io/badge/License-Apache--2.0-blue.svg)](LICENSE)
+[![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-3776AB.svg)](pyproject.toml)
 
-It reports only what the saved evidence supports: **failure reproduced**, **candidate passed listed regression tests**, **no failure found in tested cases**, or **repair not verified**. Simulation is not formal proof.
+**[Live demo](https://rtl-detective.onrender.com)** · **[2:26 demo video](https://youtu.be/UmpgmuvtHXg)** · **[Evaluation record](docs/EVALUATION.md)**
 
-**[Live demo](https://rtl-detective.onrender.com)** · **[Public repository](https://github.com/JoelObinnaEze/rtl-detective)** · **[CI](https://github.com/JoelObinnaEze/rtl-detective/actions/workflows/ci.yml)**
+![RTL Detective workbench](docs/assets/rtl-detective-thumbnail.png)
 
-The free demo can take about 50 seconds to wake after inactivity. Bundled verification also runs on a small shared CPU; wait for the live timeline rather than resubmitting.
+RTL Detective is an evidence-first agent for debugging canonical, single-clock SystemVerilog blocks. NVIDIA Nemotron investigates a cycle-level failure and proposes a repair; a deterministic host then decides whether that repair is credible by rebuilding the design, replaying the failure, running a locked regression, and checking that the verification assets did not change.
 
-## Supported contract packs
+The model is an **untrusted proposer**, not the authority. Every run ends with a bounded claim such as `candidate_passed_listed_tests`, `no_failure_found_in_tested_cases`, or `repair_not_verified`—never a claim of formal proof.
 
-- **Synchronous FIFO:** module `fifo`; parameters `DATA_WIDTH` and `DEPTH`; inputs `clk`, `rst`, `wr_en`, `rd_en`, `din`; outputs `dout`, `full`, `empty`, `count`. It uses synchronous active-high reset, registered `dout`, no fall-through, pre-edge acceptance, and explicit pointer wrapping for non-power-of-two depths.
-- **Round-robin arbiter:** module `round_robin_arbiter`; parameter `REQUESTERS` from 2 through 32; inputs `clk`, `rst`, `request`; output `grant`. The registered grant is one-hot-or-zero, selection starts at the saved priority and wraps by requester index, a grant advances priority, and an idle cycle preserves it.
+> The public demo runs on Render's free tier and can take about 50 seconds to wake after inactivity.
 
-Other policies and interfaces are rejected rather than silently adapted.
+## What this demonstrates
+
+- **Agent design with an explicit trust boundary:** the model receives bounded failure evidence and DUT source, but never the API key, oracle, locked tests, or expected patch.
+- **Real HDL execution:** Verilator compiles the candidate and emits cycle observations plus a VCD trace; executable FIFO and arbiter oracles identify the first mismatch.
+- **Defense in depth:** the host restores the locked module header, rejects unsafe or out-of-scope source, hashes verification assets, and verifies the candidate independently.
+- **Operational engineering:** FastAPI, server-sent events, a bounded run queue, cancellation, SQLite persistence, restart recovery, and portable proof bundles support both the web UI and CLI.
+- **Reproducible evaluation:** ten opaque benchmark cases, a 54-run FIFO parameter matrix, pinned dependencies, a digest-pinned Verilator image, and CI that builds and tests the judge container.
+
+## Measured results
+
+These are bounded results for the supported contracts—not a repair-rate benchmark or formal verification claim.
+
+| Evaluation | Result |
+|---|---:|
+| Hidden-label FIFO + arbiter benchmark | **10/10** expected outcomes |
+| FIFO parameter matrix | **18/18** configurations |
+| Recorded matrix seeds | **54/54** seed/configuration runs |
+| Hardened live Nemotron repair | **2** model requests, **2,472** tokens |
+| Saved reproducer | **8/8** transactions passed |
+| Independent locked regression | **80/80** transactions passed |
+| Locked oracle/test/restriction assets | **Unchanged** |
+
+The live run used Nebius Token Factory with `nvidia/nemotron-3-super-120b-a12b`. Its investigation and patch requests took 1,867 ms and 3,214 ms. The full run record, interpretation, hashes, and limits are in [docs/EVALUATION.md](docs/EVALUATION.md).
+
+## Architecture
+
+```mermaid
+flowchart LR
+    Client[Web UI or CLI] --> API[FastAPI]
+    API --> Runs[Run manager + SQLite]
+    Runs --> Baseline[Verilator + contract oracle]
+    Baseline -->|bounded mismatch evidence| Model[NVIDIA Nemotron<br/>via Nebius Token Factory]
+    Model -->|untrusted candidate| Guards[Source guards +<br/>header restoration]
+    Guards --> Verify[Reproducer +<br/>locked regression]
+    Verify --> Proof[JSON, Markdown,<br/>VCD and ZIP proof]
+    Runs --> Events[Ordered SSE timeline]
+```
+
+### Repair protocol
+
+1. Select a contract pack, validate the canonical interface, preserve the original source, and hash the locked assets.
+2. Compile the DUT with Verilator and compare every sampled cycle with the pack's executable oracle.
+3. Send only the bounded failure evidence and untrusted DUT source to Nemotron using strict JSON-schema output.
+4. Treat the response as hostile input: validate it, restore the original module header, and produce a canonical `dut.sv` diff.
+5. Replay the saved reproducer, run an independently generated locked regression, and compare asset hashes.
+6. Persist ordered events and export a portable `report.json`, `report.md`, and `artifact-bundle.zip`.
+
+A repair claim requires all three host-controlled gates: the candidate passes the saved reproducer, passes the locked regression, and leaves every locked verification asset unchanged. Correct designs stop after the baseline and make no model call.
+
+## Engineering decisions
+
+| Decision | Why it exists |
+|---|---|
+| Contract packs instead of arbitrary RTL | Makes interface semantics explicit and gives each design a human-authored oracle and regression strategy. |
+| Two bounded model calls | Caps cost and latency: one investigation, one candidate. Retries default to zero. |
+| Full candidate source + canonical host diff | Avoids applying model-generated paths or patch metadata while preserving a reviewable change. |
+| Deterministic header restoration | Prevents a candidate from specializing parameters or changing the public module interface. |
+| Independent locked regression | Stops a model from “passing” only the stimulus it proposed. |
+| Portable proof bundle | Makes every claim inspectable without trusting the UI or a database record. |
+
+Uploaded RTL runs in `verilator/verilator:v5.050` with no network, a read-only root filesystem, dropped capabilities, a non-root UID, `no-new-privileges`, and CPU, memory, process, file-size, and time limits. Local subprocess execution is restricted to trusted bundled fixtures.
 
 ## Quick start
 
-Prerequisites: Python 3.11+, and either Docker Desktop/Engine or Verilator 5.050 plus a C++ toolchain. Docker is mandatory for pasted/uploaded RTL; bundled examples may use the local simulator when Docker is unavailable.
+Prerequisites: Python 3.11+ and either Docker Desktop/Engine or Verilator 5.050 with a C++ toolchain. Docker is required for pasted or uploaded RTL.
+
+### Run a verified example without an API key
 
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\python -m pip install --only-binary=:all: -r requirements.lock
 .\.venv\Scripts\python -m backend.cli verify --example case-005
-.\.venv\Scripts\python -m backend.cli verify --example arbiter-case-003 --contract arbiter --requesters 3
 .\.venv\Scripts\python -m backend.cli serve
 ```
 
-On Linux/macOS, activate `.venv/bin/python` instead. Open [http://127.0.0.1:8000](http://127.0.0.1:8000).
+On Linux or macOS, replace `.\.venv\Scripts\python` with `.venv/bin/python`. Then open [http://127.0.0.1:8000](http://127.0.0.1:8000).
 
-`case-005` and `arbiter-case-003` are correct bundled implementations and complete without an AI call. Defective cases reproduce deterministically; repair requires the Nebius settings below.
+`case-005` is a correct bundled FIFO and completes without an AI call. The correct arbiter path is:
 
-## Nebius Token Factory
+```powershell
+.\.venv\Scripts\python -m backend.cli verify --example arbiter-case-003 --contract arbiter --requesters 3
+```
 
-Copy `.env.example` values into your process or service environment; do not commit a real `.env`. The app deliberately reads process environment variables and does not auto-load `.env` files, while `.env*` is ignored to reduce the chance of committing a key.
+### Enable the Nemotron repair loop
+
+The app reads process environment variables deliberately; it does not auto-load `.env` files. `.env*` is ignored so credentials are less likely to be committed.
 
 ```powershell
 $env:NEBIUS_API_KEY = "..."
-.\.venv\Scripts\python -m backend.cli models
 $env:NEBIUS_MODEL_ID = "nvidia/nemotron-3-super-120b-a12b"
 $env:NEBIUS_MAX_RETRIES = "0"
 $env:NEBIUS_MAX_OUTPUT_TOKENS = "1536"
 $env:MAX_PATCH_ATTEMPTS = "1"
-$env:MAX_PENDING_RUNS = "4"
+.\.venv\Scripts\python -m backend.cli models
 .\.venv\Scripts\python -m backend.cli verify --example case-001
 ```
 
-If `NEBIUS_MODEL_ID` is omitted, the app uses the verified `nvidia/nemotron-3-super-120b-a12b` default; override it after running `rtl-detective models` if the catalog changes. The backend verifies the selected ID against the account’s live `/v1/models` response before inference. Calls use Nebius’ OpenAI-compatible `/v1/chat/completions` endpoint and strict JSON-schema output. Retries default to zero and one repair attempt is allowed, so a judge run makes at most two model requests: investigation and patch. Credentials never enter the browser, simulator container, prompt, logs, or artifacts.
+The backend verifies the configured model against Nebius' live `/v1/models` response before inference. Credentials never enter the browser, simulator container, prompt, logs, or artifacts.
 
-Official references: [model listing](https://docs.tokenfactory.nebius.com/api-reference/examples/list-of-models), [text generation](https://docs.tokenfactory.nebius.com/api-reference/examples/text-generation), and [structured JSON output](https://docs.tokenfactory.nebius.com/ai-models-inference/json).
+## Development commands
 
-## Verification and tests
+| Command | Purpose |
+|---|---|
+| `python -m pytest -q` | Run the complete automated test suite |
+| `python -m backend.evaluate --source benchmark/designs/correct/reference_fifo.sv` | Reproduce the 18-configuration FIFO matrix |
+| `python -m backend.cli models` | Verify the configured Nebius model against the live catalog |
+| `python -m backend.cli verify --example case-005 --artifacts artifacts/judge` | Produce a no-cost local judge bundle |
+| `python -m backend.cli serve` | Start the web application on port 8000 |
+| `docker build -t rtl-detective .` | Build the pinned judge image |
 
-```powershell
-.\.venv\Scripts\python -m pytest -q
-.\.venv\Scripts\python -m backend.evaluate --source benchmark/designs/correct/reference_fifo.sv
+## Repository map
+
+```text
+backend/
+  agent/          bounded investigation, repair workflow, proof assembly
+  providers/      Nebius Token Factory client and schema validation
+  verification/   contract packs, oracles, Verilator runner, source guards
+  api.py           FastAPI routes and server-sent event endpoints
+  service.py       queueing, orchestration, cancellation and recovery
+  storage.py       SQLite run and event persistence
+frontend/          dependency-free dark workbench
+benchmark/         opaque FIFO and arbiter designs plus expected manifest
+tests/             API, workflow, security, simulation and benchmark coverage
+docs/              evaluation evidence, deployment and demo material
 ```
 
-The published offline matrix is `DATA_WIDTH={1,8,16}` × `DEPTH={1,2,3,4,7,8}`, with three recorded seeds per configuration. Raw results are written to `artifacts/evaluation/matrix-results.json`; do not report rates until that file exists and all denominators are stated.
+## Supported scope
 
-The bundled benchmark contains ten opaque cases: four FIFO defects, two correct FIFOs, two arbiter defects, and two independently structured correct arbiters. Expected labels remain outside model prompts. The published 18-configuration offline matrix remains FIFO-specific until an arbiter matrix is versioned and measured.
+| Contract | Supported interface and semantics |
+|---|---|
+| Synchronous FIFO | `fifo`, `DATA_WIDTH`, `DEPTH`; synchronous active-high reset, registered `dout`, no fall-through, pre-edge acceptance, explicit non-power-of-two pointer wrapping |
+| Round-robin arbiter | `round_robin_arbiter`, `REQUESTERS=2..32`; registered one-hot-or-zero grant, saved rotating priority, wraparound selection, idle priority preservation |
 
-## Architecture
+Other interfaces are rejected instead of being silently adapted. RTL Detective does not claim support for asynchronous FIFO, CDC, metastability, UVM, vendor IP flows, synthesis, place-and-route, timing closure, or board programming.
 
-1. FastAPI/CLI selects a contract pack, validates its canonical interface, preserves the original, and records a SHA-256 hash.
-2. The selected pack supplies a human-authored testbench, directed and seeded-random transactions, an executable oracle, and a locked regression suite.
-3. Verilator 5.050 emits observations and a VCD; the selected oracle records the first cycle-level mismatch.
-4. Only bounded evidence and untrusted DUT text are sent to the configured Nemotron model.
-5. Nemotron returns the complete candidate as structured source lines; the host restores the original locked module header, then creates the canonical unified diff for `dut.sv`. Any surviving header edit, check-disabling edit, foreign code, path traversal, symlink, or oversized input is rejected.
-6. Every candidate reruns its proposed reproducer and the locked suite. Oracle, test template, and restriction hashes are compared before and after.
-7. SQLite stores ordered events; per-run directories store reports, source, candidate, traces, and a ZIP bundle.
+## API surface
 
-Uploaded RTL runs in `verilator/verilator:v5.050` with no network, a read-only root filesystem, dropped capabilities, a non-root UID, no-new-privileges, and CPU/memory/process/file-size/time limits. The Docker tag is published by the official Verilator image repository. Local subprocess mode is explicitly limited to trusted bundled fixtures.
+| Endpoint | Purpose |
+|---|---|
+| `POST /api/runs` | Create an idempotent verification run |
+| `GET /api/runs/{id}` | Read state and ordered events |
+| `GET /api/runs/{id}/events` | Stream the live event timeline |
+| `POST /api/runs/{id}/cancel` | Request cancellation between bounded stages |
+| `GET /api/runs/{id}/artifacts` | Download proof outputs |
+| `GET /api/examples` | List opaque bundled examples |
+| `GET /api/health` | Read readiness and non-secret model configuration |
 
-## Proof bundle
+The in-process queue is intentionally bounded and targets a documented single-instance deployment. On restart, incomplete runs are closed with a sanitized `infrastructure_error` report instead of leaving clients waiting indefinitely.
 
-Each terminal run writes a portable `report.json`, a judge-readable `report.md`, and `artifact-bundle.zip`. The JSON record includes the schema version and run limits; original and candidate SHA-256 hashes; locked-asset hashes; baseline evidence; ordered model attempts; provider, model, request, latency, and usage metadata when returned; the exact normalized reproducer transactions; patch disposition; and separate reproducer and locked-regression outcomes. Artifact references are relative to the run directory, and simulator stdout/stderr remain separate files instead of being embedded in the report.
+## Further reading
 
-A successful repair claim has three non-model gates: the accepted candidate must pass the replayed model-proposed reproducer, pass the independently locked regression suite, and leave every locked verification asset unchanged. Correct designs stop after the baseline and make no model call. Rejected patches, provider failures, cancellation, and unexpected orchestrator failures retain the evidence completed so far without claiming a repair.
+- [Evaluation record](docs/EVALUATION.md) — exact live and offline results, hashes, and limitations
+- [Proof-engine specification](SPEC-proof-engine.md) — trust model, claims, and artifact schema
+- [Deployment runbook](docs/DEPLOYMENT.md) — judge deployment and secret configuration
+- [Capability map](CAPABILITY_MAP.md) — implemented modules and scope guardrails
+- [Submission narrative](SUBMISSION.md) — product motivation and hackathon context
 
-For the shortest local judge path, run:
-
-```powershell
-.\.venv\Scripts\python -m backend.cli verify --example case-005 --artifacts artifacts/judge
-```
-
-The command prints the run directory. Open its `report.md` for the narrative proof or `artifact-bundle.zip` for the replayable source, generated testbench, trace, logs, and canonical JSON record. Use a defective case such as `case-001` after configuring Nebius to exercise the full investigation and repair loop.
-
-## API
-
-- `POST /api/runs` — create a run; accepts `contractId` (`fifo` by default or `arbiter`) plus the relevant parameters and supports `Idempotency-Key`.
-- `GET /api/runs/{id}` — current state and ordered events.
-- `GET /api/runs/{id}/events` — server-sent event stream.
-- `POST /api/runs/{id}/cancel` — request cancellation.
-- `GET /api/runs/{id}/artifacts` — downloadable outputs.
-- `GET /api/examples` — opaque bundled examples.
-- `GET /api/health` — service readiness plus non-secret provider/model configuration.
-
-Interactive states are `queued → validating → baseline → investigating → patching → regression → completed`, with `unresolved`, `invalid_input`, `cancelled`, and `infrastructure_error` terminal alternatives.
-
-The service accepts at most `MAX_PENDING_RUNS` active or queued runs (four by default) and returns `503` when that bounded queue is full. On restart, previously nonterminal runs are closed as `infrastructure_error` with a portable interruption report instead of leaving clients waiting forever. This is an in-process guard for the documented single-instance deployment; keep an edge rate limit in front of the public endpoint.
-
-## Limitations
-
-- No arbitrary RTL interfaces, asynchronous FIFO, CDC, metastability, UVM, vendor build systems/IP, synthesis, place-and-route, timing closure, or board programming.
-- Cancellation is checked between bounded stages. Container timeouts kill the named worker; cancellation during an active local trusted simulation waits for that subprocess to finish.
-- The first release has one active simulation worker and local SQLite storage; it is not a multi-tenant service.
-
-Licensed under Apache-2.0. See `LICENSE`.
-
+Built for the Nebius × NVIDIA Global AI Hackathon's Coding and Agentic Engineering track. Licensed under [Apache-2.0](LICENSE).
