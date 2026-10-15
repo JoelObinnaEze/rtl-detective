@@ -28,4 +28,5 @@ packages = ["backend"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "--basetemp=.test-tmp"
+filterwarnings = ["error"]
 
