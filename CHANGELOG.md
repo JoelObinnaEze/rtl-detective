@@ -16,4 +16,5 @@
 
 - Stream FastAPI events from a native async generator, mask generated RTL literals to `DATA_WIDTH`, and give the isolated Verilator worker a practical bounded file limit with compiler caching disabled.
 - Publish terminal run status only after artifacts and the evidence-backed verdict are persisted, preventing the UI from racing to a generic completion label.
+- Resolve contract-aware CLI defaults, apply bundled manifest parameters when omitted, reject empty source selectors, and block DUT simulation I/O or control tasks from corrupting evidence.
 
