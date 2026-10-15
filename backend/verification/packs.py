@@ -56,7 +56,3 @@ def get_contract_pack(contract_id: str) -> ContractPack:
         return _PACKS[contract_id]
     except KeyError as error:
         raise ValueError(f"unknown contractId: {contract_id}") from error
-
-
-def contract_pack_summaries() -> list[dict[str, str]]:
-    return [{"id": pack.id, "name": pack.name, "summary": pack.summary} for pack in _PACKS.values()]
