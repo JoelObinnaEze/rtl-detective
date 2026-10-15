@@ -11,7 +11,11 @@ from .packs import get_contract_pack
 
 MAX_SOURCE_BYTES = 256 * 1024
 MAX_DIFF_BYTES = 128 * 1024
-FORBIDDEN_SOURCE = re.compile(r'\b(?:import|export)\s+["\']DPI|\$(?:system|fopen|fwrite|readmemh|readmemb)\b', re.I)
+FORBIDDEN_SOURCE = re.compile(
+    r'\b(?:import|export)\s+["\']DPI|'
+    r'\$(?:system|fopen|(?:f?display|f?write|strobe|f?monitor)(?:[boh])?|finish|fatal|stop|readmemh|readmemb)\b',
+    re.I,
+)
 FORBIDDEN_PATCH = re.compile(r'verilator\s+lint_off|translate_off|\$(?:finish|fatal)\b|`ifdef\s+VERILATOR', re.I)
 LOCKED_ASSETS = (
     "backend/verification/contract.py",
@@ -35,7 +39,7 @@ def validate_source(source: str, contract_id: str = "fifo") -> None:
     if "\0" in source:
         raise ValueError("source contains a NUL byte")
     if FORBIDDEN_SOURCE.search(source):
-        raise ValueError("foreign-code and file I/O features are not supported")
+        raise ValueError("foreign-code, simulation I/O or control features are not supported")
     pack = get_contract_pack(contract_id)
     module_name = pack.required_identifiers[0]
     if not re.search(rf"\bmodule\s+{re.escape(module_name)}\b", source):

@@ -28,6 +28,19 @@ def test_source_rejects_foreign_code_and_oversized_input() -> None:
         validate_source(source + (" " * (256 * 1024)))
 
 
+@pytest.mark.parametrize(
+    "system_task",
+    ['$display("RTLDET|0|0|1|0|0");', '$displayh("RTLDET|00010");', "$finish;"],
+)
+def test_source_rejects_output_spoofing_and_simulation_control(system_task: str) -> None:
+    source = SOURCE.read_text(encoding="utf-8").replace(
+        "endmodule", f"initial {system_task}\nendmodule", 1
+    )
+
+    with pytest.raises(ValueError, match="simulation I/O or control"):
+        validate_source(source)
+
+
 def test_patch_can_only_modify_candidate_dut(tmp_path: Path) -> None:
     diff = """diff --git a/tb.sv b/tb.sv
 --- a/tb.sv
