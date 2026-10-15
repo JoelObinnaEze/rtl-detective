@@ -179,7 +179,7 @@ def docker_available() -> bool:
             ["docker", "info", "--format", "{{.ServerVersion}}"],
             capture_output=True,
             text=True,
-            timeout=5,
+            timeout=1,
             check=False,
         )
     except (FileNotFoundError, subprocess.TimeoutExpired):

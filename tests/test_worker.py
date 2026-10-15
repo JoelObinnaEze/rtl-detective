@@ -1,6 +1,19 @@
 from pathlib import Path
+from types import SimpleNamespace
 
-from backend.verification.runner import container_security_args
+import pytest
+
+from backend.verification.runner import container_security_args, docker_available
+
+
+def test_docker_availability_probe_fails_fast(monkeypatch: pytest.MonkeyPatch) -> None:
+    def unavailable(*_args: object, **kwargs: object) -> SimpleNamespace:
+        assert kwargs["timeout"] == 1
+        return SimpleNamespace(returncode=1, stdout="")
+
+    monkeypatch.setattr("backend.verification.runner.subprocess.run", unavailable)
+
+    assert not docker_available()
 
 
 def test_container_worker_is_networkless_read_only_and_resource_bounded(tmp_path: Path) -> None:
