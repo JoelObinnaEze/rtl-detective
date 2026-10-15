@@ -1,10 +1,17 @@
 const form = document.querySelector("#run-form");
+const contract = document.querySelector("#contract");
 const example = document.querySelector("#example");
 const useSource = document.querySelector("#use-source");
 const sourceField = document.querySelector("#source-field");
 const source = document.querySelector("#source");
 const dataWidth = document.querySelector("#data-width");
 const depth = document.querySelector("#depth");
+const requesters = document.querySelector("#requesters");
+const fifoParameters = document.querySelector("#fifo-parameters");
+const arbiterParameters = document.querySelector("#arbiter-parameters");
+const contractSummary = document.querySelector("#contract-summary");
+const contractRules = document.querySelector("#contract-rules");
+const pipelineContract = document.querySelector("#pipeline-contract");
 const start = document.querySelector("#start");
 const cancel = document.querySelector("#cancel");
 const formError = document.querySelector("#form-error");
@@ -23,6 +30,32 @@ const artifacts = document.querySelector("#artifacts");
 
 let activeRun = null;
 let eventStream = null;
+let examples = [];
+
+const contractDetails = {
+  fifo: {
+    label: "Synchronous FIFO",
+    summary: "Selected FIFO contract",
+    placeholder: "module fifo #(…",
+    rules: [
+      "Synchronous active-high reset; registered read output.",
+      "Acceptance uses state immediately before the rising edge.",
+      "At full: read accepted, write rejected. At empty: write accepted, read rejected.",
+      "Explicit wrapping supports non-power-of-two depths.",
+    ],
+  },
+  arbiter: {
+    label: "Round-robin arbiter",
+    summary: "Selected arbiter contract",
+    placeholder: "module round_robin_arbiter #(…",
+    rules: [
+      "Synchronous active-high reset; registered one-hot-or-zero grant.",
+      "Selection starts at the saved priority and wraps by requester index.",
+      "Each successful grant advances priority to the following requester.",
+      "No request produces zero grant and preserves the current priority.",
+    ],
+  },
+};
 
 function element(tag, text, className) {
   const node = document.createElement(tag);
@@ -39,21 +72,46 @@ async function api(path, options) {
   return body;
 }
 
+function renderExamples() {
+  const items = examples.filter((item) => item.contractId === contract.value);
+  example.replaceChildren(...items.map((item) => {
+    const parameters = item.contractId === "arbiter"
+      ? `REQUESTERS ${item.requesters}`
+      : `DW ${item.dataWidth} · DEPTH ${item.depth}`;
+    const option = element("option", `${item.id} · ${parameters}`);
+    option.value = item.id;
+    if (item.dataWidth) option.dataset.width = item.dataWidth;
+    if (item.depth) option.dataset.depth = item.depth;
+    if (item.requesters) option.dataset.requesters = item.requesters;
+    return option;
+  }));
+  if (items.length === 0) example.append(element("option", "No bundled cases"));
+  example.dispatchEvent(new Event("change"));
+}
+
 async function loadExamples() {
   try {
-    const items = await api("/api/examples");
-    example.replaceChildren(...items.map((item) => {
-      const option = element("option", `${item.id} · DW ${item.dataWidth} · DEPTH ${item.depth}`);
-      option.value = item.id;
-      option.dataset.width = item.dataWidth;
-      option.dataset.depth = item.depth;
-      return option;
-    }));
-    example.dispatchEvent(new Event("change"));
+    examples = await api("/api/examples");
+    renderExamples();
   } catch (error) {
     example.replaceChildren(element("option", "Examples unavailable"));
     formError.textContent = error.message;
   }
+}
+
+function updateContract() {
+  const isArbiter = contract.value === "arbiter";
+  const details = contractDetails[contract.value];
+  fifoParameters.hidden = isArbiter;
+  arbiterParameters.hidden = !isArbiter;
+  dataWidth.disabled = isArbiter;
+  depth.disabled = isArbiter;
+  requesters.disabled = !isArbiter;
+  contractSummary.textContent = details.summary;
+  contractRules.replaceChildren(...details.rules.map((rule) => element("li", rule)));
+  pipelineContract.textContent = details.label;
+  source.placeholder = details.placeholder;
+  renderExamples();
 }
 
 function setStatus(value) {
@@ -140,19 +198,25 @@ useSource.addEventListener("change", () => {
   source.required = useSource.checked;
 });
 
+contract.addEventListener("change", updateContract);
+
 example.addEventListener("change", () => {
   const selected = example.selectedOptions[0];
   if (selected?.dataset.width) dataWidth.value = selected.dataset.width;
   if (selected?.dataset.depth) depth.value = selected.dataset.depth;
+  if (selected?.dataset.requesters) requesters.value = selected.dataset.requesters;
 });
 
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
   formError.textContent = "";
   start.disabled = true;
+  const parameters = contract.value === "arbiter"
+    ? { requesters: Number(requesters.value) }
+    : { dataWidth: Number(dataWidth.value), depth: Number(depth.value) };
   const body = {
-    dataWidth: Number(dataWidth.value),
-    depth: Number(depth.value),
+    contractId: contract.value,
+    ...parameters,
     ...(useSource.checked ? { source: source.value } : { exampleId: example.value }),
   };
   try {
@@ -191,5 +255,6 @@ cancel.addEventListener("click", async () => {
   }
 });
 
+updateContract();
 loadExamples();
 

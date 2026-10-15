@@ -26,7 +26,6 @@ html { background: var(--bg); }
 
 body {
   margin: 0;
-  min-width: 320px;
   background: var(--bg);
   color: var(--text);
   font-synthesis: none;
@@ -35,6 +34,20 @@ body {
 
 ::selection { color: var(--text); background: rgb(118 185 0 / 34%); }
 button, input, select, textarea { font: inherit; }
+
+.skip-link {
+  position: fixed;
+  z-index: 10;
+  top: .75rem;
+  left: .75rem;
+  padding: .6rem .8rem;
+  color: var(--accent-ink);
+  background: var(--accent);
+  border-radius: var(--radius);
+  transform: translateY(calc(-100% - 1rem));
+}
+
+.skip-link:focus { transform: translateY(0); }
 
 .topbar {
   min-height: 68px;

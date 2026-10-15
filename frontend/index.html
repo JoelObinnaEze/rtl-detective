@@ -3,13 +3,14 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="description" content="Evidence-first verification and bounded repair for small SystemVerilog FIFOs.">
+    <meta name="description" content="Evidence-first verification and bounded repair for canonical SystemVerilog blocks.">
     <title>RTL Detective</title>
     <link rel="icon" href="/favicon.svg" type="image/svg+xml">
     <link rel="stylesheet" href="/styles.css">
     <script src="/app.js" defer></script>
   </head>
   <body>
+    <a class="skip-link" href="#workspace">Skip to workspace</a>
     <header class="topbar">
       <a class="brand" href="/" aria-label="RTL Detective home">
         <span class="brand-mark" aria-hidden="true">RD</span>
@@ -26,7 +27,7 @@
         <div class="setup-intro">
           <p class="eyebrow"><span>01</span> Verification setup</p>
           <h1 id="setup-title">Find the failing cycle.</h1>
-          <p class="lede">Test one canonical synchronous FIFO, inspect the evidence, and evaluate a bounded repair.</p>
+          <p class="lede">Select an executable hardware contract, inspect cycle-level evidence, and evaluate a bounded repair.</p>
           <div class="capability-strip" aria-label="Workflow capabilities">
             <span>Simulate</span><span>Diagnose</span><span>Repair</span>
           </div>
@@ -35,6 +36,11 @@
         <form id="run-form">
           <fieldset>
             <legend><span>02</span> RTL source</legend>
+            <label for="contract">Contract pack</label>
+            <select id="contract" name="contractId" required>
+              <option value="fifo">Synchronous FIFO</option>
+              <option value="arbiter">Round-robin arbiter</option>
+            </select>
             <label for="example">Bundled case</label>
             <select id="example" name="exampleId" required>
               <option value="">Loading examples…</option>
@@ -52,7 +58,7 @@
 
           <fieldset>
             <legend><span>03</span> Parameters</legend>
-            <div class="parameter-grid">
+            <div id="fifo-parameters" class="parameter-grid">
               <label for="data-width">Data width
                 <input id="data-width" type="number" min="1" max="64" value="8" required>
               </label>
@@ -60,11 +66,16 @@
                 <input id="depth" type="number" min="1" max="1024" value="3" required>
               </label>
             </div>
+            <div id="arbiter-parameters" class="parameter-grid" hidden>
+              <label for="requesters">Requesters
+                <input id="requesters" type="number" min="2" max="32" value="4" required disabled>
+              </label>
+            </div>
           </fieldset>
 
-          <details class="contract">
-            <summary>Selected FIFO contract</summary>
-            <ul>
+          <details class="contract" aria-live="polite">
+            <summary id="contract-summary">Selected FIFO contract</summary>
+            <ul id="contract-rules">
               <li>Synchronous active-high reset; registered read output.</li>
               <li>Acceptance uses state immediately before the rising edge.</li>
               <li>At full: read accepted, write rejected. At empty: write accepted, read rejected.</li>
@@ -80,7 +91,7 @@
         </form>
       </aside>
 
-      <section class="workspace" aria-labelledby="run-title">
+      <section id="workspace" class="workspace" aria-labelledby="run-title">
         <div class="workspace-head">
           <div>
             <p class="eyebrow">Current run</p>
@@ -95,7 +106,7 @@
         <div id="empty-state" class="empty-state">
           <p class="eyebrow empty-kicker"><span>Signal path</span> Ready for input</p>
           <div class="pipeline" aria-label="Verification pipeline">
-            <div class="pipeline-step"><span>01</span><strong>RTL DUT</strong><small>Canonical FIFO</small></div>
+            <div class="pipeline-step"><span>01</span><strong>RTL DUT</strong><small id="pipeline-contract">Synchronous FIFO</small></div>
             <div class="pipeline-step"><span>02</span><strong>Verilator</strong><small>Compile + trace</small></div>
             <div class="pipeline-step"><span>03</span><strong>Oracle</strong><small>Cycle compare</small></div>
             <div class="pipeline-step"><span>04</span><strong>Evidence</strong><small>Report + patch</small></div>
