@@ -1,6 +1,6 @@
 # Three-Minute Demo Script
 
-Target length: 2:45–2:55. Record the hosted build in one take; this is a product pitch, not a setup tutorial.
+Target length: 2:45–2:55. Record the hosted build, then edit out cold-start and verification wait time; this is a product pitch, not a setup tutorial.
 
 ## 0:00–0:20 — Stakes
 

@@ -1,5 +1,12 @@
 # RTL Detective — Devpost Submission Draft
 
+## Links
+
+- Live demo: https://rtl-detective.onrender.com
+- Public source: https://github.com/JoelObinnaEze/rtl-detective
+- Passing CI: https://github.com/JoelObinnaEze/rtl-detective/actions/workflows/ci.yml
+- Deployed commit: `7ef70c6`
+
 ## Track
 
 Coding and Agentic Engineering
@@ -73,9 +80,9 @@ Use this paragraph if Devpost treats the project as pre-existing:
 
 ## Final submission checklist
 
-- [ ] Make the repository public with its Apache-2.0 license and this setup documentation.
-- [ ] Deploy the exact submitted commit and confirm `/api/health` reports the intended model.
-- [ ] Put the public demo URL in Devpost and keep free judge access available through December 15, 2026.
+- [x] Make the repository public with its Apache-2.0 license and this setup documentation.
+- [x] Deploy commit `7ef70c6` and confirm `/api/health` reports the intended model.
+- [x] Establish the public demo URL; add it to Devpost and keep free judge access available through December 15, 2026.
 - [ ] Record the hosted `case-001` flow using `docs/DEMO_SCRIPT.md`.
 - [ ] Upload a public YouTube video under three minutes and add its URL.
 - [ ] Select Coding and Agentic Engineering, include the significant-update disclosure if applicable, and paste the feedback above.

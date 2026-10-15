@@ -4,6 +4,10 @@ RTL Detective is an evidence-first agent for canonical, single-clock SystemVeril
 
 It reports only what the saved evidence supports: **failure reproduced**, **candidate passed listed regression tests**, **no failure found in tested cases**, or **repair not verified**. Simulation is not formal proof.
 
+**[Live demo](https://rtl-detective.onrender.com)** · **[Public repository](https://github.com/JoelObinnaEze/rtl-detective)** · **[CI](https://github.com/JoelObinnaEze/rtl-detective/actions/workflows/ci.yml)**
+
+The free demo can take about 50 seconds to wake after inactivity. Bundled verification also runs on a small shared CPU; wait for the live timeline rather than resubmitting.
+
 ## Supported contract packs
 
 - **Synchronous FIFO:** module `fifo`; parameters `DATA_WIDTH` and `DEPTH`; inputs `clk`, `rst`, `wr_en`, `rd_en`, `din`; outputs `dout`, `full`, `empty`, `count`. It uses synchronous active-high reset, registered `dout`, no fall-through, pre-edge acceptance, and explicit pointer wrapping for non-power-of-two depths.
@@ -109,14 +113,15 @@ Verified locally on October 14, 2026:
 - The pinned `verilator/verilator:v5.050` worker passed an actual Docker simulation with its network, filesystem, privilege, and resource restrictions enabled.
 - A live `case-001` repair completed through Nebius Token Factory with `nvidia/nemotron-3-super-120b-a12b`: 2 requests, 1,840 prompt tokens, 825 completion tokens, 2,665 total tokens, and an estimated `$0.001295` at the catalog rates observed that day. The model-proposed stimulus was safely replaced by the exact baseline failure prefix when it did not reproduce; the resulting candidate passed both that reproducer and the 80-transaction locked regression while locked assets remained unchanged.
 - An October 15 hardening confirmation reached the same live provider/model with two recorded request IDs and 2,492 total tokens. It correctly refused to claim a repair when the model specialized a locked parameter default; that result led to deterministic host-side header restoration before canonical diff generation, covered by offline regression tests without another paid call.
+- The public Render deployment of commit `7ef70c6` reports the configured Nebius/NVIDIA model and completed hosted `case-005` under its 512 MB free-tier limit with `no_failure_found_in_tested_cases`; that fixture makes no model request.
 
-Judge and submission material: [submission copy](SUBMISSION.md), [three-minute demo script](docs/DEMO_SCRIPT.md), [deployment runbook](docs/DEPLOYMENT.md), and [evaluation record](docs/EVALUATION.md). The included `Dockerfile` and `render.yaml` deploy the bundled-example demo on Render's free tier with the Nebius key supplied as a host secret.
+Judge and submission material: [submission copy](SUBMISSION.md), [three-minute demo script](docs/DEMO_SCRIPT.md), [recording-ready voice lines](docs/VOICE_LINES.md), [deployment runbook](docs/DEPLOYMENT.md), and [evaluation record](docs/EVALUATION.md). The included `Dockerfile` and `render.yaml` deploy the bundled-example demo on Render's free tier with the Nebius key supplied as a host secret.
 
 ## Hackathon checklist
 
 The [official rules](https://nebiusglobalaihackathon.devpost.com/rules) list an October 30, 2026, 10:00 a.m. PDT deadline (11:00 a.m. in Calgary/Edmonton), require a runtime Token Factory or Nebius AI Cloud call using an NVIDIA open-source model, a public open-source repository, a working demo/test build, and a public YouTube demo under three minutes. Judging access must remain free through December 15, 2026.
 
-Before submission: deploy the current commit, publish the repository, record the real UI flow, add both URLs to Devpost, keep judge access available through December 15, and re-check eligibility/current rules. Nothing in this repository submits or purchases anything automatically.
+Before submission: record the real UI flow, publish the public YouTube video, add its URL to Devpost, keep judge access available through December 15, and re-check eligibility/current rules. Nothing in this repository submits or purchases anything automatically.
 
 ## Limitations
 
