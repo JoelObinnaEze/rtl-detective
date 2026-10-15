@@ -4,12 +4,22 @@ import httpx
 import pytest
 
 from backend.providers.nebius import (
+    DEFAULT_MODEL_ID,
     InvestigationAction,
     NebiusProvider,
     PatchAction,
     ProviderError,
     TransactionAction,
 )
+
+
+def test_rejects_lookalike_nebius_domain_before_attaching_credentials() -> None:
+    with pytest.raises(ProviderError, match="HTTPS nebius.com endpoint"):
+        NebiusProvider(
+            api_key="test-key",
+            model_id="nvidia/example-nemotron",
+            base_url="https://evilnebius.com/v1/",
+        )
 
 
 def test_discovers_only_available_nvidia_models() -> None:
@@ -171,6 +181,17 @@ def test_from_env_applies_the_live_request_budget(monkeypatch: pytest.MonkeyPatc
     try:
         assert provider.retries == 0
         assert provider.max_tokens == 768
+    finally:
+        provider.client.close()
+
+
+def test_from_env_uses_the_verified_default_model(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("NEBIUS_API_KEY", "test-key")
+    monkeypatch.delenv("NEBIUS_MODEL_ID", raising=False)
+
+    provider = NebiusProvider.from_env()
+    try:
+        assert provider.model_id == DEFAULT_MODEL_ID
     finally:
         provider.client.close()
 

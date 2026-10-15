@@ -1,18 +1,18 @@
 from __future__ import annotations
 
+import json
+import os
+import shutil
+import zipfile
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict
 from hashlib import sha256
 from html import escape
-import json
-import os
 from pathlib import Path
-import shutil
-import zipfile
 
 from backend.agent.proof import RunLimits
 from backend.agent.workflow import RepairWorkflow, RunEvent, WorkflowReport
-from backend.api import CreateRunRequest, TERMINAL_STATES
+from backend.api import TERMINAL_STATES, CreateRunRequest
 from backend.providers.nebius import NebiusProvider, ProviderError
 from backend.storage import RunStore
 from backend.verification.runner import (
@@ -27,7 +27,7 @@ from backend.verification.trace import extract_signal_changes
 
 class _UnavailableProvider:
     def verify_model(self) -> None:
-        raise ProviderError("NEBIUS_API_KEY and NEBIUS_MODEL_ID are required for repair after a reproduced failure")
+        raise ProviderError("NEBIUS_API_KEY is required for repair after a reproduced failure")
 
     def investigate(self, evidence: str):
         self.verify_model()
@@ -125,7 +125,7 @@ class RunManager:
         return run_id
 
     def _provider(self):
-        if os.getenv("NEBIUS_API_KEY") and os.getenv("NEBIUS_MODEL_ID"):
+        if os.getenv("NEBIUS_API_KEY"):
             return NebiusProvider.from_env()
         return _UnavailableProvider()
 

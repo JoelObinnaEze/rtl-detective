@@ -1,19 +1,35 @@
 import json
+import time
+import zipfile
 from pathlib import Path
 from threading import Event
-import time
 from types import SimpleNamespace
-import zipfile
 
 import pytest
 
-from backend.api import CreateRunRequest
 from backend.agent.workflow import RunEvent
+from backend.api import CreateRunRequest
+from backend.providers.nebius import DEFAULT_MODEL_ID, NebiusProvider
 from backend.service import RunManager
 from backend.verification.runner import SimulationParameters
 
-
 ROOT = Path(__file__).parents[1]
+
+
+def test_provider_is_ready_with_key_and_verified_default_model(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("NEBIUS_API_KEY", "test-key")
+    monkeypatch.delenv("NEBIUS_MODEL_ID", raising=False)
+    manager = RunManager(tmp_path)
+
+    provider = manager._provider()
+    try:
+        assert isinstance(provider, NebiusProvider)
+        assert provider.model_id == DEFAULT_MODEL_ID
+    finally:
+        provider.client.close()
+        manager.shutdown()
 
 
 def test_examples_expose_opaque_ids_without_hidden_labels(tmp_path: Path) -> None:

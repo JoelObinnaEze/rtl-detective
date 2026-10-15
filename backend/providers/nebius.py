@@ -11,6 +11,7 @@ import httpx
 from pydantic import BaseModel, Field, ValidationError
 
 DEFAULT_BASE_URL = "https://api.tokenfactory.nebius.com/v1/"
+DEFAULT_MODEL_ID = "nvidia/nemotron-3-super-120b-a12b"
 
 
 class ProviderError(RuntimeError):
@@ -65,7 +66,8 @@ class NebiusProvider:
         if not model_id:
             raise ProviderError("NEBIUS_MODEL_ID is required; discover it with the models command")
         parsed = urlparse(base_url)
-        if parsed.scheme != "https" or not (parsed.hostname or "").endswith("nebius.com"):
+        hostname = (parsed.hostname or "").lower().rstrip(".")
+        if parsed.scheme != "https" or not (hostname == "nebius.com" or hostname.endswith(".nebius.com")):
             raise ProviderError("NEBIUS_BASE_URL must be an HTTPS nebius.com endpoint")
         if not 0 <= retries <= 2:
             raise ProviderError("NEBIUS_MAX_RETRIES must be an integer between 0 and 2")
@@ -89,7 +91,7 @@ class NebiusProvider:
             raise ProviderError("Nebius request budgets must be integers") from error
         return cls(
             api_key=os.getenv("NEBIUS_API_KEY", ""),
-            model_id=os.getenv("NEBIUS_MODEL_ID", ""),
+            model_id=os.getenv("NEBIUS_MODEL_ID") or DEFAULT_MODEL_ID,
             base_url=os.getenv("NEBIUS_BASE_URL", DEFAULT_BASE_URL),
             retries=retries,
             max_tokens=max_tokens,
