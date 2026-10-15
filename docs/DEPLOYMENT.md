@@ -1,6 +1,17 @@
 # Judge Deployment Runbook
 
-This runbook favors a single small Linux VM with Docker. It matches the application's one-worker SQLite architecture and avoids spending time on orchestration the demo does not need.
+The judge build uses the included `Dockerfile` and `render.yaml` on Render's free web-service tier. It matches the application's one-worker SQLite architecture and keeps hosting separate from the Nebius inference budget. The manual Linux VM path below remains the rollback option.
+
+## Render judge deployment
+
+1. Publish the repository and create a Render Blueprint from its public GitHub URL.
+2. Keep the Blueprint's `free` plan and enter `NEBIUS_API_KEY` only in Render's secret prompt.
+3. Wait for `/api/health` to pass, then open the assigned `onrender.com` URL.
+4. Run `case-005` first for a no-inference smoke test. Run `case-001` only when recording or validating the live model path.
+
+The container includes Verilator 5.050, binds FastAPI to Render's `PORT`, and allows one queued/active run. Render's free filesystem is ephemeral and can cold-start after 15 idle minutes, so proof bundles should be downloaded before a restart. Because the hosted container has no Docker socket, the trusted bundled examples run locally while pasted RTL stays disabled; that preserves the isolation boundary instead of executing public uploads in the web-service process.
+
+## Manual Linux VM fallback
 
 ## Host requirements
 

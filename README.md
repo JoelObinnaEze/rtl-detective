@@ -110,7 +110,7 @@ Verified locally on October 14, 2026:
 - A live `case-001` repair completed through Nebius Token Factory with `nvidia/nemotron-3-super-120b-a12b`: 2 requests, 1,840 prompt tokens, 825 completion tokens, 2,665 total tokens, and an estimated `$0.001295` at the catalog rates observed that day. The model-proposed stimulus was safely replaced by the exact baseline failure prefix when it did not reproduce; the resulting candidate passed both that reproducer and the 80-transaction locked regression while locked assets remained unchanged.
 - An October 15 hardening confirmation reached the same live provider/model with two recorded request IDs and 2,492 total tokens. It correctly refused to claim a repair when the model specialized a locked parameter default; that result led to deterministic host-side header restoration before canonical diff generation, covered by offline regression tests without another paid call.
 
-Judge and submission material: [submission copy](SUBMISSION.md), [three-minute demo script](docs/DEMO_SCRIPT.md), [deployment runbook](docs/DEPLOYMENT.md), and [evaluation record](docs/EVALUATION.md).
+Judge and submission material: [submission copy](SUBMISSION.md), [three-minute demo script](docs/DEMO_SCRIPT.md), [deployment runbook](docs/DEPLOYMENT.md), and [evaluation record](docs/EVALUATION.md). The included `Dockerfile` and `render.yaml` deploy the bundled-example demo on Render's free tier with the Nebius key supplied as a host secret.
 
 ## Hackathon checklist
 

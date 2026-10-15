@@ -1,0 +1,25 @@
+services:
+  - type: web
+    name: rtl-detective
+    runtime: docker
+    plan: free
+    healthCheckPath: /api/health
+    envVars:
+      - key: NEBIUS_API_KEY
+        sync: false
+      - key: NEBIUS_BASE_URL
+        value: https://api.tokenfactory.nebius.com/v1/
+      - key: NEBIUS_MODEL_ID
+        value: nvidia/nemotron-3-super-120b-a12b
+      - key: NEBIUS_MAX_RETRIES
+        value: "0"
+      - key: NEBIUS_MAX_OUTPUT_TOKENS
+        value: "1536"
+      - key: MAX_PATCH_ATTEMPTS
+        value: "1"
+      - key: SIMULATION_TIMEOUT_SECONDS
+        value: "120"
+      - key: MAX_PENDING_RUNS
+        value: "1"
+      - key: ARTIFACTS_DIRECTORY
+        value: /app/artifacts

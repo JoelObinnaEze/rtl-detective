@@ -1,0 +1,25 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  judge-image:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Build judge image
+        run: docker build --tag rtl-detective:ci .
+      - name: Test judge image
+        run: >-
+          docker run --rm --entrypoint sh rtl-detective:ci -c
+          "python -m pytest -q &&
+          python -m compileall -q backend &&
+          python -m backend.cli verify --example case-005 --artifacts /tmp/judge"

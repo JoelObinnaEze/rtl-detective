@@ -1,0 +1,13 @@
+.git
+.env
+.env.*
+!.env.example
+.venv
+__pycache__
+*.py[cod]
+artifacts
+graphify-out
+.pytest_cache
+.test-tmp*
+*.pem
+*.key
