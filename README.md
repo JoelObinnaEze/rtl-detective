@@ -65,6 +65,20 @@ The bundled benchmark contains ten opaque cases: four FIFO defects, two correct 
 
 Uploaded RTL runs in `verilator/verilator:v5.050` with no network, a read-only root filesystem, dropped capabilities, a non-root UID, no-new-privileges, and CPU/memory/process/file-size/time limits. The Docker tag is published by the official Verilator image repository. Local subprocess mode is explicitly limited to trusted bundled fixtures.
 
+## Proof bundle
+
+Each terminal run writes a portable `report.json`, a judge-readable `report.md`, and `artifact-bundle.zip`. The JSON record includes the schema version and run limits; original and candidate SHA-256 hashes; locked-asset hashes; baseline evidence; ordered model attempts; provider, model, request, latency, and usage metadata when returned; the exact normalized reproducer transactions; patch disposition; and separate reproducer and locked-regression outcomes. Artifact references are relative to the run directory, and simulator stdout/stderr remain separate files instead of being embedded in the report.
+
+A successful repair claim has three non-model gates: the accepted candidate must pass the replayed model-proposed reproducer, pass the independently locked regression suite, and leave every locked verification asset unchanged. Correct designs stop after the baseline and make no model call. Rejected patches, provider failures, cancellation, and unexpected orchestrator failures retain the evidence completed so far without claiming a repair.
+
+For the shortest local judge path, run:
+
+```powershell
+.\.venv\Scripts\python -m backend.cli verify --example case-005 --artifacts artifacts/judge
+```
+
+The command prints the run directory. Open its `report.md` for the narrative proof or `artifact-bundle.zip` for the replayable source, generated testbench, trace, logs, and canonical JSON record. Use a defective case such as `case-001` after configuring Nebius to exercise the full investigation and repair loop.
+
 ## API
 
 - `POST /api/runs` — create a run; accepts `contractId` (`fifo` by default or `arbiter`) plus the relevant parameters and supports `Idempotency-Key`.
@@ -81,7 +95,9 @@ Interactive states are `queued → validating → baseline → investigating →
 Verified locally on October 14, 2026:
 
 - Python 3.13.7 and Verilator 5.050.
-- FIFO and arbiter contract/oracle tests, ten-case real-Verilator benchmark, patch restrictions, provider schema validation, persistence/API/UI contracts, and an end-to-end fake-provider repair with independent regression.
+- The complete 80-test suite, Ruff, Python bytecode compilation, frontend JavaScript syntax, locked dependency integrity, and the known-vulnerability audit pass.
+- FIFO and arbiter contract/oracle tests, ten-case real-Verilator benchmark, patch restrictions, provider schema validation, persistence/API/UI contracts, and an end-to-end fake-provider repair with an auditable attempt trail and independent regression.
+- Schema-versioned JSON, Markdown, and ZIP proof artifacts were cross-checked on a real local Verilator run; the reports use artifact-relative paths and write a sanitized fallback record on unexpected orchestrator failure.
 - The published offline matrix passed 18/18 configurations across three recorded seeds per configuration (54 seed/configuration combinations). Raw local output is in `artifacts/evaluation/matrix-results.json`.
 - The pinned `verilator/verilator:v5.050` worker passed an actual Docker simulation with its network, filesystem, privilege, and resource restrictions enabled.
 - No `NEBIUS_API_KEY` was available, so a live Token Factory request and exact account model ID remain unverified.

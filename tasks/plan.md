@@ -52,16 +52,16 @@ SimulationOutcome + model replies + executed transactions
 ### Phase 2: Portable artifacts
 
 - [x] Task 3: Persist coherent and sanitized proof artifacts
-- [ ] Task 4: Document the proof contract and completed module
+- [x] Task 4: Document the proof contract and completed module
 
 ### Checkpoint: Complete
 
-- [ ] Real FIFO and arbiter simulator tests pass
-- [ ] Full test suite and static checks pass
-- [ ] A local bundled run produces matching JSON, Markdown, and ZIP evidence
-- [ ] No report contains an absolute host path, secret, or unsupported proof claim
-- [ ] Graphify is updated and the changed dependency path is reviewed
-- [ ] Atomic commits leave the working tree clean
+- [x] Real FIFO and arbiter simulator tests pass
+- [x] Full test suite and static checks pass
+- [x] A local bundled run produces matching JSON, Markdown, and ZIP evidence
+- [x] No report contains an absolute host path, secret, or unsupported proof claim
+- [x] Graphify is updated and the changed dependency path is reviewed
+- [x] Atomic commits leave the working tree clean
 
 ## Implementation Order
 

@@ -2,7 +2,7 @@
 
 Module id: `proof-engine`
 
-Status: approved on October 14, 2026
+Status: implemented and locally verified on October 14, 2026; live Nebius evidence remains gated on account access
 
 Parent: [CAPABILITY_MAP.md](CAPABILITY_MAP.md)
 

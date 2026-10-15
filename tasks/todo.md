@@ -91,15 +91,15 @@
 
 **Acceptance criteria:**
 
-- [ ] README explains proof-carrying repair, report fields, verification gates, and the local judge path in user language.
-- [ ] Changelog records the user-visible evidence and portability improvements.
-- [ ] The approved spec and capability map accurately reflect implementation status and retain the live-Nebius gate.
+- [x] README explains proof-carrying repair, report fields, verification gates, and the local judge path in user language.
+- [x] Changelog records the user-visible evidence and portability improvements.
+- [x] The approved spec and capability map accurately reflect implementation status and retain the live-Nebius gate.
 
 **Verification:**
 
-- [ ] Documentation links and commands match the repository.
-- [ ] Full verification passes: `.\.venv\Scripts\python.exe -m pytest -q`, `ruff check backend tests`, `.\.venv\Scripts\python.exe -m compileall -q backend`, `node --check frontend/app.js`, `.\.venv\Scripts\python.exe -m pip check`, and `git diff --check`.
-- [ ] Graphify is updated and the proof path is inspected before review.
+- [x] Documentation links and commands match the repository.
+- [x] Full verification passes: `.\.venv\Scripts\python.exe -m pytest -q`, `ruff check backend tests`, `.\.venv\Scripts\python.exe -m compileall -q backend`, `node --check frontend/app.js`, `.\.venv\Scripts\python.exe -m pip check`, and `git diff --check`.
+- [x] Graphify is updated and the proof path is inspected before review.
 
 **Dependencies:** Task 3
 
@@ -114,7 +114,7 @@
 
 ## Checkpoint: Complete
 
-- [ ] Every task and acceptance criterion above is checked.
-- [ ] Real Verilator FIFO, arbiter, and benchmark tests pass.
-- [ ] JSON, Markdown, and ZIP evidence agree and contain no host paths or secrets.
-- [ ] Atomic commits leave the working tree clean and ready for `judge-workbench` planning.
+- [x] Every task and acceptance criterion above is checked.
+- [x] Real Verilator FIFO, arbiter, and benchmark tests pass.
+- [x] JSON, Markdown, and ZIP evidence agree and contain no host paths or secrets.
+- [x] Atomic commits leave the working tree clean and ready for `judge-workbench` planning.
