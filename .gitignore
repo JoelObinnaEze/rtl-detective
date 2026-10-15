@@ -11,4 +11,5 @@ artifacts/
 .test-tmp/
 .mypy_cache/
 frontend/.cache/
+graphify-out/
 
