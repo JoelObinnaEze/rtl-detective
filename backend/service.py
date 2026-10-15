@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor
+from dataclasses import asdict
 from hashlib import sha256
 import json
 import os
@@ -8,6 +9,7 @@ from pathlib import Path
 import shutil
 import zipfile
 
+from backend.agent.proof import RunLimits
 from backend.agent.workflow import RepairWorkflow, RunEvent, WorkflowReport
 from backend.api import CreateRunRequest, TERMINAL_STATES
 from backend.providers.nebius import NebiusProvider, ProviderError
@@ -18,8 +20,7 @@ from backend.verification.runner import (
     run_container_simulation,
     run_local_simulation,
 )
-from backend.verification.packs import get_contract_pack
-from backend.verification.security import validate_source
+from backend.verification.security import hash_locked_assets, validate_source
 from backend.verification.trace import extract_signal_changes
 
 
@@ -126,6 +127,7 @@ class RunManager:
         self, run_id: str, source: Path, source_kind: str, parameters: SimulationParameters
     ) -> None:
         run_root = self.runs_root / run_id
+        limits = RunLimits(max_patch_attempts=3, simulation_timeout_seconds=30)
 
         def on_event(event: RunEvent) -> None:
             self.store.append_event(run_id, event.state, event.message)
@@ -134,10 +136,14 @@ class RunManager:
 
         try:
             simulation_runner = run_container_simulation if source_kind == "upload" or docker_available() else run_local_simulation
-            workflow = RepairWorkflow(
-                provider=self._provider(),
+            limits = RunLimits(
                 max_patch_attempts=int(os.getenv("MAX_PATCH_ATTEMPTS", "3")),
                 simulation_timeout_seconds=int(os.getenv("SIMULATION_TIMEOUT_SECONDS", "30")),
+            )
+            workflow = RepairWorkflow(
+                provider=self._provider(),
+                max_patch_attempts=limits.max_patch_attempts,
+                simulation_timeout_seconds=limits.simulation_timeout_seconds,
                 on_event=on_event,
                 is_cancelled=lambda: self.store.is_cancelled(run_id),
                 simulation_runner=simulation_runner,
@@ -150,34 +156,12 @@ class RunManager:
             self._write_artifacts(run_root, report)
             self.store.update_run(run_id, report.status, report.verdict)
         except Exception:
+            self._write_failure_artifacts(run_root, source, parameters, limits)
             self.store.append_event(run_id, "infrastructure_error", "Run failed inside the orchestrator")
             self.store.update_run(run_id, "infrastructure_error", "infrastructure_error")
 
     @staticmethod
     def _write_artifacts(run_root: Path, report: WorkflowReport) -> None:
-        report_json = run_root / "report.json"
-        report_json.write_text(json.dumps(report.to_dict(), indent=2, default=str), encoding="utf-8")
-        first_failure = report.baseline.failures[0] if report.baseline.failures else None
-        pack = get_contract_pack(report.parameters.contract_id)
-        lines = [
-            "# RTL Detective report",
-            "",
-            f"- Status: `{report.status}`",
-            f"- Verdict: `{report.verdict}`",
-            f"- Source SHA-256: `{report.source_hash}`",
-            f"- Contract: `{pack.id}`",
-            f"- Parameters: {pack.parameter_summary(report.parameters)}",
-            f"- Simulator: {report.baseline.simulator_version or 'unavailable'}",
-            "",
-            "## Evidence",
-            "",
-            json.dumps(first_failure.expected if first_failure else "No mismatch", indent=2),
-            "",
-            "## Limitations",
-            "",
-            *[f"- {item}" for item in report.limitations],
-        ]
-        (run_root / "report.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
         if report.final_candidate:
             shutil.copyfile(report.final_candidate, run_root / "candidate.sv")
         if report.baseline.trace_path and report.baseline.trace_path.exists():
@@ -186,6 +170,78 @@ class RunManager:
             (run_root / "trace-changes.json").write_text(
                 json.dumps(extract_signal_changes(trace), indent=2), encoding="utf-8"
             )
+        payload = report.to_dict()
+        baseline = payload.get("baseline")
+        if isinstance(baseline, dict):
+            for stream in ("stdout", "stderr"):
+                content = getattr(report.baseline, stream)
+                artifact = f"baseline.{stream}.txt" if content else None
+                if artifact:
+                    (run_root / artifact).write_text(content, encoding="utf-8")
+                baseline[stream] = None
+                baseline[f"{stream}_artifact"] = artifact
+        RunManager._write_report_bundle(run_root, payload)
+
+    @staticmethod
+    def _write_failure_artifacts(
+        run_root: Path,
+        source: Path,
+        parameters: SimulationParameters,
+        limits: RunLimits,
+    ) -> None:
+        source_hash = sha256(source.read_bytes()).hexdigest() if source.is_file() else None
+        locked_after = hash_locked_assets(Path(__file__).parents[1])
+        payload: dict[str, object] = {
+            "schema_version": 1,
+            "status": "infrastructure_error",
+            "verdict": "infrastructure_error",
+            "claim": "Repair not verified.",
+            "source_hash": source_hash,
+            "parameters": asdict(parameters),
+            "run_limits": asdict(limits),
+            "baseline": None,
+            "baseline_summary": {
+                "status": "not_completed",
+                "transaction_count": 0,
+                "first_failure": None,
+                "simulator_version": None,
+                "trace_artifact": None,
+            },
+            "attempts": [],
+            "events": [],
+            "integrity": {
+                "source_sha256": source_hash,
+                "locked_assets_before": {},
+                "locked_assets_after": locked_after,
+                "locked_assets_unchanged": False,
+            },
+            "limitations": ["The orchestrator failed before a complete verification report was available."],
+            "error": {
+                "code": "ORCHESTRATOR_FAILURE",
+                "message": "Run failed inside the orchestrator",
+            },
+        }
+        RunManager._write_report_bundle(run_root, payload)
+
+    @staticmethod
+    def _write_report_bundle(run_root: Path, payload: dict[str, object]) -> None:
+        artifact_names = [
+            name
+            for name in (
+                "baseline.stderr.txt",
+                "baseline.stdout.txt",
+                "candidate.sv",
+                "original.sv",
+                "report.json",
+                "report.md",
+                "trace-changes.json",
+                "trace.vcd",
+            )
+            if name in {"report.json", "report.md"} or (run_root / name).is_file()
+        ]
+        payload["artifacts"] = artifact_names
+        (run_root / "report.json").write_bytes(json.dumps(payload, indent=2).encode())
+        (run_root / "report.md").write_bytes(RunManager._markdown_report(payload).encode())
 
         bundle = run_root / "artifact-bundle.zip"
         with zipfile.ZipFile(bundle, "w", compression=zipfile.ZIP_DEFLATED) as archive:
@@ -195,6 +251,48 @@ class RunManager:
                 if path.suffix.lower() in {".exe", ".o", ".d", ".cpp", ".h"}:
                     continue
                 archive.write(path, path.relative_to(run_root))
+
+    @staticmethod
+    def _markdown_report(payload: dict[str, object]) -> str:
+        integrity = payload.get("integrity") if isinstance(payload.get("integrity"), dict) else {}
+        baseline = payload.get("baseline_summary") if isinstance(payload.get("baseline_summary"), dict) else {}
+        lines = [
+            "# RTL Detective report",
+            "",
+            f"- Status: `{payload.get('status')}`",
+            f"- Verdict: `{payload.get('verdict')}`",
+            f"- Claim: {payload.get('claim')}",
+            f"- Source SHA-256: `{payload.get('source_hash')}`",
+            f"- Baseline: `{baseline.get('status', 'not available')}`",
+            f"- Simulator: {baseline.get('simulator_version') or 'unavailable'}",
+            f"- Locked assets unchanged: `{integrity.get('locked_assets_unchanged', False)}`",
+        ]
+        for index, attempt in enumerate(payload.get("attempts", []), start=1):
+            if not isinstance(attempt, dict):
+                continue
+            investigation = attempt.get("investigation")
+            candidate = attempt.get("candidate")
+            verification = attempt.get("verification")
+            lines.extend(["", f"## Attempt {index}", ""])
+            if isinstance(investigation, dict):
+                request = investigation.get("provider_request")
+                if isinstance(request, dict):
+                    lines.append(f"- Provider: {request.get('provider')} / {request.get('model_id')}")
+                    lines.append(f"- Request: `{request.get('request_id') or 'unavailable'}`")
+            if isinstance(candidate, dict):
+                lines.append(f"- Candidate SHA-256: `{candidate.get('source_sha256') or 'rejected'}`")
+            if isinstance(verification, dict):
+                reproducer = verification.get("reproducer")
+                regression = verification.get("regression")
+                if isinstance(reproducer, dict):
+                    lines.append(f"- Reproducer: `{reproducer.get('status')}`")
+                if isinstance(regression, dict):
+                    lines.append(f"- Locked regression: `{regression.get('status')}`")
+        lines.extend(["", "## Artifacts", ""])
+        lines.extend(f"- `{name}`" for name in payload.get("artifacts", []))
+        lines.extend(["", "## Limitations", ""])
+        lines.extend(f"- {item}" for item in payload.get("limitations", []))
+        return "\n".join(lines) + "\n"
 
     def get_run(self, run_id: str) -> dict[str, object]:
         return self.store.get_run(run_id)

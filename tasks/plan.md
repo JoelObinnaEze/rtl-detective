@@ -51,7 +51,7 @@ SimulationOutcome + model replies + executed transactions
 
 ### Phase 2: Portable artifacts
 
-- [ ] Task 3: Persist coherent and sanitized proof artifacts
+- [x] Task 3: Persist coherent and sanitized proof artifacts
 - [ ] Task 4: Document the proof contract and completed module
 
 ### Checkpoint: Complete

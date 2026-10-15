@@ -1,13 +1,16 @@
+import json
 from pathlib import Path
 from threading import Event
 import time
 from types import SimpleNamespace
+import zipfile
 
 import pytest
 
 from backend.api import CreateRunRequest
 from backend.agent.workflow import RunEvent
 from backend.service import RunManager
+from backend.verification.runner import SimulationParameters
 
 
 ROOT = Path(__file__).parents[1]
@@ -122,4 +125,103 @@ def test_terminal_status_is_not_visible_before_the_final_verdict(
     finally:
         release_artifact_write.set()
         manager.shutdown()
+
+
+def test_json_markdown_and_zip_share_the_same_proof(tmp_path: Path) -> None:
+    payload = {
+        "schema_version": 1,
+        "status": "completed",
+        "verdict": "candidate_passed_listed_tests",
+        "claim": "Candidate passed the reproducer and listed locked regression tests.",
+        "source_hash": "source-hash",
+        "parameters": {"contract_id": "fifo", "data_width": 8, "depth": 3},
+        "integrity": {"locked_assets_unchanged": True},
+        "baseline": {"stdout": "simulation output", "stderr": "compiler warning"},
+        "baseline_summary": {"status": "functional_mismatch", "simulator_version": "Verilator 5.050"},
+        "attempts": [
+            {
+                "investigation": {
+                    "provider_request": {"provider": "nebius", "model_id": "nvidia/model", "request_id": "req-1"}
+                },
+                "candidate": {"source_sha256": "candidate-hash"},
+                "verification": {
+                    "reproducer": {"status": "passed"},
+                    "regression": {"status": "passed"},
+                },
+            }
+        ],
+        "limitations": ["Simulation is not formal proof."],
+    }
+    report = SimpleNamespace(
+        to_dict=lambda: payload,
+        final_candidate=None,
+        baseline=SimpleNamespace(trace_path=None, stdout="simulation output", stderr="compiler warning"),
+    )
+
+    RunManager._write_artifacts(tmp_path, report)
+
+    serialized = (tmp_path / "report.json").read_text(encoding="utf-8")
+    data = json.loads(serialized)
+    markdown = (tmp_path / "report.md").read_text(encoding="utf-8")
+    assert data["claim"] in markdown
+    assert data["verdict"] in markdown
+    assert data["source_hash"] in markdown
+    assert data["attempts"][0]["candidate"]["source_sha256"] in markdown
+    assert data["baseline"]["stdout"] is None
+    assert data["baseline"]["stdout_artifact"] == "baseline.stdout.txt"
+    assert "simulation output" not in serialized
+    assert "nebius / nvidia/model" in markdown
+    assert "Reproducer: `passed`" in markdown
+    assert "Locked regression: `passed`" in markdown
+    assert str(tmp_path) not in serialized + markdown
+    with zipfile.ZipFile(tmp_path / "artifact-bundle.zip") as archive:
+        names = set(archive.namelist())
+        assert set(data["artifacts"]) <= names
+        assert json.loads(archive.read("report.json")) == data
+        assert archive.read("report.md").decode() == markdown
+
+
+def test_unexpected_orchestrator_failure_writes_sanitized_proof_before_terminal_state(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    class FailingWorkflow:
+        def __init__(self, **_kwargs: object) -> None:
+            pass
+
+        def run(self, *_args: object) -> None:
+            raise RuntimeError(f"secret-token at {tmp_path}")
+
+    monkeypatch.setattr("backend.service.RepairWorkflow", FailingWorkflow)
+    monkeypatch.setattr("backend.service.docker_available", lambda: False)
+    manager = RunManager(tmp_path)
+    parameters = SimulationParameters(data_width=8, depth=3)
+    run_id = manager.store.create_run(
+        {"contract_id": "fifo", "data_width": 8, "depth": 3},
+        provider_mode="live",
+        source_kind="example",
+    )
+    run_root = manager.runs_root / run_id
+    run_root.mkdir()
+    source = run_root / "original.sv"
+    source.write_text(
+        (ROOT / "benchmark/designs/correct/reference_fifo.sv").read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+
+    manager._execute(run_id, source, "example", parameters)
+
+    data = json.loads((run_root / "report.json").read_text(encoding="utf-8"))
+    serialized = json.dumps(data)
+    assert manager.get_run(run_id)["status"] == "infrastructure_error"
+    assert data["schema_version"] == 1
+    assert data["status"] == "infrastructure_error"
+    assert data["claim"] == "Repair not verified."
+    assert data["integrity"]["source_sha256"]
+    assert data["integrity"]["locked_assets_unchanged"] is False
+    assert data["error"] == {"code": "ORCHESTRATOR_FAILURE", "message": "Run failed inside the orchestrator"}
+    assert "secret-token" not in serialized
+    assert str(tmp_path) not in serialized
+    assert (run_root / "report.md").is_file()
+    assert (run_root / "artifact-bundle.zip").is_file()
+    manager.shutdown()
 

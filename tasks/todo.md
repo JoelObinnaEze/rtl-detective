@@ -65,15 +65,15 @@
 
 **Acceptance criteria:**
 
-- [ ] `report.json`, `report.md`, and ZIP contents agree on verdict, claim, hashes, provider identity, verification gates, and artifact names.
-- [ ] The serialized report contains no absolute workspace path, API key, authorization header, raw prompt, or hidden reasoning.
-- [ ] Unexpected orchestrator failure reaches `infrastructure_error` only after a schema-versioned fallback `report.json` is saved.
+- [x] `report.json`, `report.md`, and ZIP contents agree on verdict, claim, hashes, provider identity, verification gates, and artifact names.
+- [x] The serialized report contains no absolute workspace path, API key, authorization header, raw prompt, or hidden reasoning.
+- [x] Unexpected orchestrator failure reaches `infrastructure_error` only after a schema-versioned fallback `report.json` is saved.
 
 **Verification:**
 
-- [ ] Red-first service tests pass: `.\.venv\Scripts\python.exe -m pytest tests/test_service.py tests/test_api.py tests/test_cli.py -q`
-- [ ] Local smoke run succeeds: `.\.venv\Scripts\python.exe -m backend.cli verify --example case-005 --artifacts .test-tmp\proof-smoke`
-- [ ] Inspect `.test-tmp\proof-smoke` report and bundle names against the acceptance criteria.
+- [x] Red-first service tests pass: `.\.venv\Scripts\python.exe -m pytest tests/test_service.py tests/test_api.py tests/test_cli.py -q`
+- [x] Local smoke run succeeds: `.\.venv\Scripts\python.exe -m backend.cli verify --example case-005 --artifacts .test-tmp\proof-smoke`
+- [x] Inspect `.test-tmp\proof-smoke` report and bundle names against the acceptance criteria.
 
 **Dependencies:** Tasks 1 and 2
 
