@@ -1,5 +1,7 @@
 # RTL Detective
 
+![RTL Detective](docs/assets/rtl-detective-thumbnail.png)
+
 RTL Detective is an evidence-first agent for canonical, single-clock SystemVerilog blocks. It compiles the DUT with Verilator, compares every sampled cycle with the selected contract pack's executable oracle, asks an NVIDIA/Nemotron model through Nebius Token Factory for a bounded investigation and candidate diff, then independently reruns the reproducer and locked tests.
 
 It reports only what the saved evidence supports: **failure reproduced**, **candidate passed listed regression tests**, **no failure found in tested cases**, or **repair not verified**. Simulation is not formal proof.
