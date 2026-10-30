@@ -6,7 +6,7 @@
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache--2.0-blue.svg)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-3776AB.svg)](pyproject.toml)
 
-**[Live demo](https://rtl-detective.onrender.com)** · **[2:26 demo video](https://youtu.be/UmpgmuvtHXg)** · **[Evaluation record](docs/EVALUATION.md)**
+**[Live demo](https://rtl-detective.onrender.com)** · **[2:26 demo video](https://youtu.be/XPPq5EEomiE)** · **[Evaluation record](docs/EVALUATION.md)**
 
 ![RTL Detective workbench](docs/assets/rtl-detective-thumbnail.png)
 

@@ -5,7 +5,7 @@
 - Live demo: https://rtl-detective.onrender.com
 - Public source: https://github.com/JoelObinnaEze/rtl-detective
 - Passing CI: https://github.com/JoelObinnaEze/rtl-detective/actions/workflows/ci.yml
-- Demo video: https://youtu.be/UmpgmuvtHXg
+- Demo video: https://youtu.be/XPPq5EEomiE
 - Evaluation record: https://github.com/JoelObinnaEze/rtl-detective/blob/main/docs/EVALUATION.md
 
 ## Track
